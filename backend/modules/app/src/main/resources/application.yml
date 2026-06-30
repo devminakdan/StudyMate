@@ -24,6 +24,13 @@ spring:
     listener:
       ack-mode: manual
 
+studymate:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:my-super-secret-key-that-is-at-least-32-bytes-long}
+      access-token-ttl: 15m
+      refresh-token-ttl: 7d
+
 server:
   port: 8080
 
