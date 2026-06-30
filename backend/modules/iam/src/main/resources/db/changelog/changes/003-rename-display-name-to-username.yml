@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: iam-003-rename-display-name-to-username
+      author: devminakdan
+      changes:
+        - renameColumn:
+            tableName: users
+            oldColumnName: display_name
+            newColumnName: username
+            columnDataType: varchar(100)

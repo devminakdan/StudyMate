@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: classpath:db/changelog/changes/001-create-users.yml
+  - include:
+      file: classpath:db/changelog/changes/002-create-user-roles.yml
+  - include:
+      file: classpath:db/changelog/changes/003-rename-display-name-to-username.yml

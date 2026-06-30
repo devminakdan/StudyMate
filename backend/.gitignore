@@ -1,0 +1,31 @@
+# Gradle
+.gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated jOOQ classes
+**/generated-src/
+**/kotlin-generated/
+
+# Logs
+*.log
+
+# Local config
+application-local.yml
+.env
+.env.local
+
+# Storage (local file storage for dev)
+storage/
