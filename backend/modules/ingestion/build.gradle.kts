@@ -15,7 +15,7 @@ dependencies {
     implementation(project(":course"))
     implementation(project(":ai"))
     implementation(project(":retrieval"))
-    implementation(project(":storage"))
+    // TODO: add back once :storage module exists
 
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-jooq")

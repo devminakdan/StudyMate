@@ -9,7 +9,7 @@ dependencies {
     implementation(project(":common"))
     implementation(project(":iam"))
     implementation(project(":course"))
-    implementation(project(":storage"))
+    // TODO: add back once :storage module exists
     implementation(project(":ai"))
     implementation(project(":retrieval"))
     implementation(project(":ingestion"))
