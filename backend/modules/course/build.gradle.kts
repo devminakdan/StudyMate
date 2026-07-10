@@ -14,7 +14,7 @@ dependencyManagement {
 dependencies {
     api(project(":common"))
     implementation(project(":iam"))
-    implementation(project(":storage"))
+    // TODO: add back once :storage module exists
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-jooq")
@@ -37,4 +37,45 @@ dependencies {
     testImplementation("org.testcontainers:junit-jupiter:1.20.1")
     testImplementation("io.mockk:mockk:1.13.12")
     testImplementation("com.ninja-squad:springmockk:4.0.2")
+}
+
+jooq {
+    configurations {
+        create("main") {
+            jooqConfiguration.apply {
+                jdbc.apply {
+                    driver = "org.postgresql.Driver"
+                    url = "jdbc:postgresql://localhost:5432/studymate"
+                    user = "postgres"
+                    password = "postgres"
+                }
+                generator.apply {
+                    name = "org.jooq.codegen.KotlinGenerator"
+                    database.apply {
+                        name = "org.jooq.meta.postgres.PostgresDatabase"
+                        inputSchema = "public"
+                        includes = "courses|materials"
+                    }
+                    generate.apply {
+                        isDeprecated = false
+                        isRecords = true
+                        isFluentSetters = true
+                        isPojos = true
+                    }
+                    target.apply {
+                        packageName = "cz.cvut.fit.studymate.course.generated"
+                        directory = "${project.projectDir}/src/main/kotlin-generated"
+                    }
+                }
+            }
+        }
+    }
+}
+
+sourceSets {
+    main {
+        kotlin {
+            srcDir("src/main/kotlin-generated")
+        }
+    }
 }
