@@ -17,15 +17,11 @@ internal class CourseRepository(
         code: String?,
         description: String?
     ) : Course {
-        val now = OffsetDateTime.now()
-
         return dsl.insertInto(COURSES)
             .set(COURSES.OWNER_ID, ownerId)
             .set(COURSES.NAME, name)
             .set(COURSES.CODE, code)
             .set(COURSES.DESCRIPTION, description)
-            .set(COURSES.CREATED_AT, now)
-            .set(COURSES.UPDATED_AT, now)
             .returning()
             .fetchOneInto(Course::class.java)!!
     }
