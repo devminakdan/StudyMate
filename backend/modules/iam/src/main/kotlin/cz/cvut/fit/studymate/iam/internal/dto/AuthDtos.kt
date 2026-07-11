@@ -1,5 +1,6 @@
 package cz.cvut.fit.studymate.iam.internal.dto
 
+import cz.cvut.fit.studymate.iam.internal.service.TokenPair
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
@@ -32,4 +33,11 @@ internal data class AuthResponse(
     val userId: UUID,
     val email: String,
     val username: String,
+)
+
+internal data class RegisterLoginResult(
+    val userId: UUID,
+    val email: String,
+    val username: String,
+    val tokens: TokenPair
 )
