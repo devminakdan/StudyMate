@@ -53,7 +53,7 @@ jooq {
                     database.apply {
                         name = "org.jooq.meta.postgres.PostgresDatabase"
                         inputSchema = "public"
-                        includes = "users|user_roles"
+                        includes = "users"
                     }
                     generate.apply {
                         isDeprecated = false

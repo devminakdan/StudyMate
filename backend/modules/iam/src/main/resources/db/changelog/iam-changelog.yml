@@ -5,3 +5,5 @@ databaseChangeLog:
       file: classpath:db/changelog/changes/002-create-user-roles.yml
   - include:
       file: classpath:db/changelog/changes/003-rename-display-name-to-username.yml
+  - include:
+      file: classpath:db/changelog/changes/004-inline-role-into-users.yml
