@@ -2,7 +2,7 @@
 
 --changeset qqrayzqq:course-001-create-courses
 CREATE TABLE courses (
-    id uuid NOT NULL,
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
     owner_id uuid NOT NULL,
     name varchar(200) NOT NULL,
     code varchar(50),

@@ -21,10 +21,8 @@ internal class CourseService(
         return course
     }
 
-    fun createCourse(ownerId: UUID, name: String, code: String?, description: String?): Course {
-        val id = UUID.randomUUID()
-        return courseRepository.create(id, ownerId, name, code, description)
-    }
+    fun createCourse(ownerId: UUID, name: String, code: String?, description: String?): Course =
+        courseRepository.create(ownerId, name, code, description)
 
     fun listCourses(ownerId: UUID) = courseRepository.findByOwnerId(ownerId)
 

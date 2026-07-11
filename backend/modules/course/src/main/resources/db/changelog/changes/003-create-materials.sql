@@ -2,7 +2,7 @@
 
 --changeset qqrayzqq:course-003-create-materials
 CREATE TABLE materials (
-    id uuid NOT NULL,
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
     course_id uuid NOT NULL,
     original_filename varchar(500) NOT NULL,
     storage_path varchar(1000) NOT NULL,

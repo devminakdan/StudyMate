@@ -12,7 +12,6 @@ internal class CourseRepository(
     private val dsl: DSLContext
 ) {
     fun create(
-        id : UUID,
         ownerId: UUID,
         name: String,
         code: String?,
@@ -21,7 +20,6 @@ internal class CourseRepository(
         val now = OffsetDateTime.now()
 
         return dsl.insertInto(COURSES)
-            .set(COURSES.ID, id)
             .set(COURSES.OWNER_ID, ownerId)
             .set(COURSES.NAME, name)
             .set(COURSES.CODE, code)
