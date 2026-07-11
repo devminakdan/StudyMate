@@ -1,9 +1,9 @@
 databaseChangeLog:
   - include:
-      file: classpath:db/changelog/changes/001-create-courses.yml
+      file: classpath:db/changelog/changes/001-create-courses.sql
   - include:
-      file: classpath:db/changelog/changes/002-add-courses-owner-index.yml
+      file: classpath:db/changelog/changes/002-add-courses-owner-index.sql
   - include:
-      file: classpath:db/changelog/changes/003-create-materials.yml
+      file: classpath:db/changelog/changes/003-create-materials.sql
   - include:
-      file: classpath:db/changelog/changes/004-add-materials-course-index.yml
+      file: classpath:db/changelog/changes/004-add-materials-course-index.sql
