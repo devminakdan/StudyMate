@@ -2,7 +2,9 @@ package cz.cvut.fit.studymate.iam.internal.service
 
 import cz.cvut.fit.studymate.iam.api.AuthenticatedUser
 import cz.cvut.fit.studymate.iam.internal.dto.RegisterLoginResult
+import cz.cvut.fit.studymate.iam.internal.exception.InvalidTokenException
 import cz.cvut.fit.studymate.iam.internal.repository.UserRepository
+import io.jsonwebtoken.JwtException
 import org.springframework.security.authentication.BadCredentialsException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -33,5 +35,23 @@ internal class AuthService(
         val authUser = AuthenticatedUser(user.id, user.email, user.role)
         val tokens = jwtService.generateTokenPair(authUser)
         return RegisterLoginResult(user.id, user.email, user.username, tokens)
+    }
+
+    fun refresh(refreshToken: String): TokenPair {
+        val claims = try {
+            jwtService.parseAndValidate(refreshToken)
+        } catch (e: JwtException) {
+            throw InvalidTokenException("Invalid refresh token")
+        }
+
+        if (claims.type != TokenType.REFRESH) {
+            throw InvalidTokenException("Token is not a refresh token")
+        }
+
+        val user = repository.findById(claims.userId)
+            ?: throw InvalidTokenException("User no longer exists")
+
+        val authUser = AuthenticatedUser(user.id, user.email, user.role)
+        return jwtService.generateTokenPair(authUser)
     }
 }
