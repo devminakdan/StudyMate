@@ -26,7 +26,7 @@ internal class AuthController(
         @Valid @RequestBody req: RegisterRequest,
         response: HttpServletResponse
     ): ResponseEntity<AuthResponse> {
-        val result = authService.register(req.email, req.password, req.username)
+        val result = authService.register(req.username, req.email, req.password)
 
         jwtCookies.setTokens(response, result.tokens.accessToken, result.tokens.refreshToken)
 
@@ -43,7 +43,7 @@ internal class AuthController(
         val result = authService.login(req.email, req.password)
         jwtCookies.setTokens(response, result.tokens.accessToken, result.tokens.refreshToken)
 
-        return AuthResponse(result.userId, result.email, result.displayName)
+        return AuthResponse(result.userId, result.email, result.username)
     }
 
     @PostMapping("/refresh")

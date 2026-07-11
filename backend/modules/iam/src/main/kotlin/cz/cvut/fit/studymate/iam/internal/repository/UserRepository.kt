@@ -5,7 +5,6 @@ import cz.cvut.fit.studymate.iam.api.User
 import cz.cvut.fit.studymate.iam.generated.tables.references.USERS
 import org.jooq.DSLContext
 import org.springframework.stereotype.Repository
-import java.time.OffsetDateTime
 import java.util.UUID
 
 internal data class UserWithHash(
@@ -18,25 +17,24 @@ internal class UserRepository(
     private val dsl: DSLContext,
 ) {
     fun create(
-        id: UUID,
         username: String,
         email: String,
-        passwordHash: String,
-        role: Role,
-    ): User {
-        val now = OffsetDateTime.now()
-        dsl.insertInto(USERS)
-            .set(USERS.ID, id)
+        passwordHash: String
+    ): User = dsl.insertInto(USERS)
             .set(USERS.EMAIL, email)
             .set(USERS.PASSWORD_HASH, passwordHash)
             .set(USERS.USERNAME, username)
-            .set(USERS.ROLE, role.name)
-            .set(USERS.CREATED_AT, now)
-            .set(USERS.UPDATED_AT, now)
-            .execute()
-
-        return User(id, username, email, role, now, now)
-    }
+            .set(USERS.ROLE, Role.USER.name)
+            .returning()
+            .fetchSingle{ created ->
+                User(created.id!!,
+                    username,
+                    email,
+                    Role.valueOf(created.role!!),
+                    created.createdAt!!,
+                    created.updatedAt!!
+                )
+            }
 
     fun existsByEmail(email: String): Boolean = dsl.fetchExists(
             dsl.selectOne().from(USERS).where(USERS.EMAIL.eq(email))
