@@ -30,6 +30,7 @@ studymate:
       secret: ${JWT_SECRET:my-super-secret-key-that-is-at-least-32-bytes-long}
       access-token-ttl: 15m
       refresh-token-ttl: 7d
+      cookie-secure: ${JWT_COOKIE_SECURE:false}
 
 server:
   port: 8080

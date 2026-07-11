@@ -3,6 +3,7 @@ package cz.cvut.fit.studymate.iam.internal.controller
 import cz.cvut.fit.studymate.iam.internal.dto.AuthResponse
 import cz.cvut.fit.studymate.iam.internal.dto.LoginRequest
 import cz.cvut.fit.studymate.iam.internal.dto.RegisterRequest
+import cz.cvut.fit.studymate.iam.internal.exception.InvalidTokenException
 import cz.cvut.fit.studymate.iam.internal.security.JwtCookies
 import cz.cvut.fit.studymate.iam.internal.service.AuthService
 import jakarta.servlet.http.HttpServletRequest

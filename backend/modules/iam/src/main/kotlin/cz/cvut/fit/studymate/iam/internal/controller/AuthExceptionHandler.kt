@@ -1,5 +1,6 @@
 package cz.cvut.fit.studymate.iam.internal.controller
 
+import cz.cvut.fit.studymate.iam.internal.exception.InvalidTokenException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.authentication.BadCredentialsException
@@ -16,4 +17,10 @@ internal class AuthExceptionHandler {
         ResponseEntity
             .status(HttpStatus.UNAUTHORIZED)
             .body(ErrorResponse(ex.message ?: "Invalid credentials"))
+
+    @ExceptionHandler(InvalidTokenException::class)
+    fun handleInvalidToken(ex: InvalidTokenException): ResponseEntity<ErrorResponse> =
+        ResponseEntity
+            .status(HttpStatus.UNAUTHORIZED)
+            .body(ErrorResponse(ex.message ?: "Invalid token"))
 }
