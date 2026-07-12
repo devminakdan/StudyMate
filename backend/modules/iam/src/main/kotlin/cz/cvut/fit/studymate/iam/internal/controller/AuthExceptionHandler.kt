@@ -1,6 +1,7 @@
 package cz.cvut.fit.studymate.iam.internal.controller
 
 import cz.cvut.fit.studymate.iam.internal.exception.InvalidTokenException
+import cz.cvut.fit.studymate.iam.internal.exception.UserNotFoundException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.authentication.BadCredentialsException
@@ -23,4 +24,10 @@ internal class AuthExceptionHandler {
         ResponseEntity
             .status(HttpStatus.UNAUTHORIZED)
             .body(ErrorResponse(ex.message ?: "Invalid token"))
+
+    @ExceptionHandler(UserNotFoundException::class)
+    fun handleUserNotFound(ex: UserNotFoundException): ResponseEntity<ErrorResponse> =
+        ResponseEntity
+            .status(HttpStatus.NOT_FOUND)
+            .body(ErrorResponse(ex.message ?: "User not found"))
 }
