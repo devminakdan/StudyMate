@@ -1,5 +1,6 @@
 package cz.cvut.fit.studymate.iam.internal.service
 
+import cz.cvut.fit.studymate.iam.api.Role
 import cz.cvut.fit.studymate.iam.api.User
 import cz.cvut.fit.studymate.iam.api.UserLookup
 import cz.cvut.fit.studymate.iam.internal.exception.UserNotFoundException
@@ -17,5 +18,9 @@ internal class UserService(
 
     override fun findByIds(ids: Collection<UUID>): Map<UUID, User> {
         return repository.findByIds(ids)
+    }
+
+    fun changeRole(id: UUID, role: Role): User {
+        return repository.updateRole(id, role) ?: throw UserNotFoundException(id)
     }
 }

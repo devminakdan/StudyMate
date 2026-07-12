@@ -5,6 +5,7 @@ import cz.cvut.fit.studymate.iam.api.User
 import cz.cvut.fit.studymate.iam.generated.tables.references.USERS
 import org.jooq.DSLContext
 import org.springframework.stereotype.Repository
+import java.time.OffsetDateTime
 import java.util.UUID
 
 internal data class UserWithHash(
@@ -62,6 +63,14 @@ internal class UserRepository(
                 userId to record.toUser()
             }
     }
+
+    fun updateRole(id: UUID, role: Role): User? = dsl
+        .update(USERS)
+        .set(USERS.ROLE, role.name)
+        .set(USERS.UPDATED_AT, OffsetDateTime.now())
+        .where(USERS.ID.eq(id))
+        .returning()
+        .fetchOne { it.toUser() }
 
     fun findByEmailWithHash(email: String): UserWithHash? {
         val record = dsl
