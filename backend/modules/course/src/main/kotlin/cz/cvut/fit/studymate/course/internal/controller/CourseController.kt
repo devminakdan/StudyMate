@@ -8,6 +8,7 @@ import cz.cvut.fit.studymate.course.internal.service.CourseService
 import cz.cvut.fit.studymate.iam.api.AuthenticatedUser
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
@@ -36,8 +38,15 @@ internal class CourseController(
     @GetMapping
     fun listCourses(
         @AuthenticationPrincipal user: AuthenticatedUser,
-    ): List<CourseResponse> =
-        courseService.listCourses(user.id).map { it.toResponse() }
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "20") size: Int,
+    ): ResponseEntity<List<CourseResponse>> {
+        val courses = courseService.listCourses(user.id, page.coerceAtLeast(0), size.coerceIn(1, 100))
+        val total = courseService.countCourses(user.id)
+        return ResponseEntity.ok()
+            .header("X-Total-Count", total.toString())
+            .body(courses.map { it.toResponse() })
+    }
 
     @GetMapping("/{id}")
     fun getCourse(
