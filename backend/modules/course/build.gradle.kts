@@ -93,13 +93,25 @@ tasks.register<JavaExec>("liquibaseUpdate") {
     description = "Applies pending Liquibase changesets directly, without starting the Spring Boot app."
     mainClass.set("liquibase.integration.commandline.LiquibaseCommandLine")
     classpath = configurations["liquibaseRuntime"]
+    // workingDir + a src/main/resources-relative changelog path so the
+    // recorded changeset filenames match what Spring Boot's own
+    // classpath:-based SpringLiquibase bean records at app startup — see
+    // the :iam:liquibaseUpdate task for the full explanation.
+    workingDir = file("src/main/resources")
     args = listOf(
-        "--changelog-file=src/main/resources/db/changelog/course-changelog.yml",
+        "--changelog-file=db/changelog/course-changelog.yml",
         "--url=jdbc:postgresql://localhost:5432/studymate",
         "--username=postgres",
         "--password=postgres",
         "update",
     )
+    // courses.owner_id has a real FK on users(id), and databasechangelog/
+    // databasechangeloglock are shared, database-wide tables — running this
+    // concurrently with :iam:liquibaseUpdate on an empty database is both
+    // logically wrong (FK target missing) and racy (two CREATE TABLE
+    // databasechangelog statements at once). Gradle won't infer this
+    // ordering on its own since these are independent JavaExec tasks.
+    dependsOn(":iam:liquibaseUpdate")
 }
 
 tasks.named("generateJooq") {

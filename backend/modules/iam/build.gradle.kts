@@ -30,6 +30,8 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
+    implementation("io.swagger.core.v3:swagger-annotations-jakarta:2.2.52")
+
     jooqGenerator("org.postgresql:postgresql:42.7.4")
 
     liquibaseRuntime("org.liquibase:liquibase-core:4.27.0")
@@ -91,8 +93,15 @@ tasks.register<JavaExec>("liquibaseUpdate") {
     description = "Applies pending Liquibase changesets directly, without starting the Spring Boot app."
     mainClass.set("liquibase.integration.commandline.LiquibaseCommandLine")
     classpath = configurations["liquibaseRuntime"]
+    // workingDir + a src/main/resources-relative changelog path (instead of
+    // passing the src/main/resources prefix in --changelog-file itself) so
+    // Liquibase records the same "db/changelog/..." filename that Spring
+    // Boot's own classpath:-based SpringLiquibase bean uses at app startup.
+    // Mismatched recorded filenames make Liquibase treat the same changeset
+    // as two different ones and re-run (and fail) it a second time.
+    workingDir = file("src/main/resources")
     args = listOf(
-        "--changelog-file=src/main/resources/db/changelog/iam-changelog.yml",
+        "--changelog-file=db/changelog/iam-changelog.yml",
         "--url=jdbc:postgresql://localhost:5432/studymate",
         "--username=postgres",
         "--password=postgres",
