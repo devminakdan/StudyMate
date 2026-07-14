@@ -6,17 +6,15 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Configuration
-import org.springframework.test.context.DynamicPropertyRegistry
-import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.annotation.Transactional
 import org.testcontainers.containers.PostgreSQLContainer
-import org.testcontainers.junit.jupiter.Container
-import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.utility.DockerImageName
 import java.util.UUID
 
-@Testcontainers
 @SpringBootTest(
     classes = [UserRepositoryTest.TestConfig::class],
     webEnvironment = SpringBootTest.WebEnvironment.NONE,
@@ -24,10 +22,16 @@ import java.util.UUID
 @Transactional
 internal class UserRepositoryTest {
 
-    @Configuration
+    @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
     @ComponentScan(basePackageClasses = [UserRepository::class])
-    class TestConfig
+    class TestConfig {
+
+        @Bean
+        @ServiceConnection
+        fun postgres(): PostgreSQLContainer<*> =
+            PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
+    }
 
     @Autowired
     lateinit var repository: UserRepository
@@ -105,20 +109,5 @@ internal class UserRepositoryTest {
     @Test
     fun `updateRole returns null for an unknown id`() {
         assertThat(repository.updateRole(UUID.randomUUID(), Role.ADMIN)).isNull()
-    }
-
-    companion object {
-        @Container
-        @JvmStatic
-        val postgres = PostgreSQLContainer("postgres:16-alpine")
-
-        @JvmStatic
-        @DynamicPropertySource
-        fun registerProperties(registry: DynamicPropertyRegistry) {
-            registry.add("spring.datasource.url", postgres::getJdbcUrl)
-            registry.add("spring.datasource.username", postgres::getUsername)
-            registry.add("spring.datasource.password", postgres::getPassword)
-            registry.add("spring.liquibase.change-log") { "classpath:db/changelog/iam-changelog.yml" }
-        }
     }
 }
