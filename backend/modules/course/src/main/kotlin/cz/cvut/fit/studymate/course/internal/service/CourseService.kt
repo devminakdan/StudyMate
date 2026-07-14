@@ -24,7 +24,10 @@ internal class CourseService(
     fun createCourse(ownerId: UUID, name: String, code: String?, description: String?): Course =
         courseRepository.create(ownerId, name, code, description)
 
-    fun listCourses(ownerId: UUID) = courseRepository.findByOwnerId(ownerId)
+    fun listCourses(ownerId: UUID, page: Int, size: Int): List<Course> =
+        courseRepository.findByOwnerId(ownerId, limit = size, offset = page * size)
+
+    fun countCourses(ownerId: UUID): Int = courseRepository.countByOwnerId(ownerId)
 
     fun getCourse(courseId: UUID, userId: UUID) = requireOwnership(courseId, userId)
 

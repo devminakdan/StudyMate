@@ -7,3 +7,5 @@ databaseChangeLog:
       file: classpath:db/changelog/changes/003-create-materials.sql
   - include:
       file: classpath:db/changelog/changes/004-add-materials-course-index.sql
+  - include:
+      file: classpath:db/changelog/changes/005-add-courses-owner-name-unique.sql

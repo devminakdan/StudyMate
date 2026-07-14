@@ -32,11 +32,17 @@ fun findById(id : UUID) : Course? {
             .fetchOneInto(Course::class.java)
     }
 
-    fun findByOwnerId(ownerId: UUID) : List<Course> {
+    fun findByOwnerId(ownerId: UUID, limit : Int, offset: Int) : List<Course> {
         return dsl.selectFrom(COURSES)
             .where(COURSES.OWNER_ID.eq(ownerId))
+            .orderBy(COURSES.CREATED_AT.desc())
+            .limit(limit)
+            .offset(offset)
             .fetchInto(Course::class.java)
     }
+
+    fun countByOwnerId(ownerId: UUID): Int =
+        dsl.fetchCount(COURSES, COURSES.OWNER_ID.eq(ownerId))
 
     fun update(id: UUID, name: String, code: String?, description: String?) : Course? {
         val now = OffsetDateTime.now()
