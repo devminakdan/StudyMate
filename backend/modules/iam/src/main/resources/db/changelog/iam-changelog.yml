@@ -1,9 +1,13 @@
 databaseChangeLog:
   - include:
-      file: classpath:db/changelog/changes/001-create-users.sql
+      file: changes/001-create-users.sql
+      relativeToChangelogFile: true
   - include:
-      file: classpath:db/changelog/changes/002-create-user-roles.sql
+      file: changes/002-create-user-roles.sql
+      relativeToChangelogFile: true
   - include:
-      file: classpath:db/changelog/changes/003-rename-display-name-to-username.sql
+      file: changes/003-rename-display-name-to-username.sql
+      relativeToChangelogFile: true
   - include:
-      file: classpath:db/changelog/changes/004-inline-role-into-users.sql
+      file: changes/004-inline-role-into-users.sql
+      relativeToChangelogFile: true

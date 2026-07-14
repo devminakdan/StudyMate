@@ -1,11 +1,16 @@
 databaseChangeLog:
   - include:
-      file: classpath:db/changelog/changes/001-create-courses.sql
+      file: changes/001-create-courses.sql
+      relativeToChangelogFile: true
   - include:
-      file: classpath:db/changelog/changes/002-add-courses-owner-index.sql
+      file: changes/002-add-courses-owner-index.sql
+      relativeToChangelogFile: true
   - include:
-      file: classpath:db/changelog/changes/003-create-materials.sql
+      file: changes/003-create-materials.sql
+      relativeToChangelogFile: true
   - include:
-      file: classpath:db/changelog/changes/004-add-materials-course-index.sql
+      file: changes/004-add-materials-course-index.sql
+      relativeToChangelogFile: true
   - include:
-      file: classpath:db/changelog/changes/005-add-courses-owner-name-unique.sql
+      file: changes/005-add-courses-owner-name-unique.sql
+      relativeToChangelogFile: true
