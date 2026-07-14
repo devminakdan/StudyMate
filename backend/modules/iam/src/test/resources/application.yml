@@ -1,3 +1,11 @@
 spring:
   liquibase:
     change-log: classpath:db/changelog/iam-changelog.yml
+
+studymate:
+  security:
+    jwt:
+      secret: test-only-secret-key-that-is-at-least-32-bytes-long
+      access-token-ttl: 15m
+      refresh-token-ttl: 7d
+      cookie-secure: false
