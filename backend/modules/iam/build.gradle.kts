@@ -12,6 +12,8 @@ dependencyManagement {
     }
 }
 
+val liquibaseRuntime by configurations.creating
+
 dependencies {
     api(project(":common"))
 
@@ -29,6 +31,10 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
     jooqGenerator("org.postgresql:postgresql:42.7.4")
+
+    liquibaseRuntime("org.liquibase:liquibase-core:4.27.0")
+    liquibaseRuntime("org.postgresql:postgresql:42.7.4")
+    liquibaseRuntime("info.picocli:picocli:4.7.5")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
@@ -78,4 +84,22 @@ sourceSets {
             srcDir("src/main/kotlin-generated")
         }
     }
+}
+
+tasks.register<JavaExec>("liquibaseUpdate") {
+    group = "liquibase"
+    description = "Applies pending Liquibase changesets directly, without starting the Spring Boot app."
+    mainClass.set("liquibase.integration.commandline.LiquibaseCommandLine")
+    classpath = configurations["liquibaseRuntime"]
+    args = listOf(
+        "--changelog-file=src/main/resources/db/changelog/iam-changelog.yml",
+        "--url=jdbc:postgresql://localhost:5432/studymate",
+        "--username=postgres",
+        "--password=postgres",
+        "update",
+    )
+}
+
+tasks.named("generateJooq") {
+    dependsOn("liquibaseUpdate")
 }

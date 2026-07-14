@@ -8,8 +8,11 @@ plugins {
 dependencyManagement {
     imports {
         mavenBom("org.springframework.boot:spring-boot-dependencies:3.3.4")
+        mavenBom("org.testcontainers:testcontainers-bom:1.21.4")
     }
 }
+
+val liquibaseRuntime by configurations.creating
 
 dependencies {
     api(project(":common"))
@@ -25,9 +28,27 @@ dependencies {
 
     jooqGenerator("org.postgresql:postgresql:42.7.4")
 
+    liquibaseRuntime("org.liquibase:liquibase-core:4.27.0")
+    liquibaseRuntime("org.postgresql:postgresql:42.7.4")
+    liquibaseRuntime("info.picocli:picocli:4.7.5")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
-    testImplementation("org.testcontainers:postgresql:1.20.1")
-    testImplementation("org.testcontainers:junit-jupiter:1.20.1")
+    testImplementation("org.testcontainers:postgresql")
+    testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("io.mockk:mockk:1.13.12")
+}
+
+tasks.register<JavaExec>("liquibaseUpdate") {
+    group = "liquibase"
+    description = "Applies pending Liquibase changesets directly, without starting the Spring Boot app."
+    mainClass.set("liquibase.integration.commandline.LiquibaseCommandLine")
+    classpath = configurations["liquibaseRuntime"]
+    args = listOf(
+        "--changelog-file=src/main/resources/db/changelog/retrieval-changelog.yml",
+        "--url=jdbc:postgresql://localhost:5432/studymate",
+        "--username=postgres",
+        "--password=postgres",
+        "update",
+    )
 }
