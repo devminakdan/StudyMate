@@ -5,7 +5,7 @@ import cz.cvut.fit.studymate.iam.api.Role
 import cz.cvut.fit.studymate.iam.api.User
 import cz.cvut.fit.studymate.iam.internal.exception.InvalidTokenException
 import cz.cvut.fit.studymate.iam.internal.repository.UserRepository
-import cz.cvut.fit.studymate.iam.internal.repository.UserWithHash
+import cz.cvut.fit.studymate.iam.internal.security.UserPrincipal
 import io.jsonwebtoken.MalformedJwtException
 import io.mockk.every
 import io.mockk.mockk
@@ -14,7 +14,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.authentication.BadCredentialsException
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.crypto.password.PasswordEncoder
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -24,7 +26,8 @@ internal class AuthServiceTest {
     private val repository = mockk<UserRepository>()
     private val jwtService = mockk<JwtService>()
     private val passwordEncoder = mockk<PasswordEncoder>()
-    private val authService = AuthService(repository, jwtService, passwordEncoder)
+    private val authenticationManager = mockk<AuthenticationManager>()
+    private val authService = AuthService(repository, jwtService, passwordEncoder, authenticationManager)
 
     private fun user(
         id: UUID = UUID.randomUUID(),
@@ -66,12 +69,13 @@ internal class AuthServiceTest {
     }
 
     @Test
-    fun `login returns tokens and the persisted user's details for valid credentials`() {
+    fun `login authenticates via AuthenticationManager and returns tokens for the resulting principal`() {
         val existing = user()
         val tokens = TokenPair("access-token", "refresh-token")
+        val principal = UserPrincipal(existing, "hashed")
+        val authentication = UsernamePasswordAuthenticationToken(principal, "secret", principal.authorities)
 
-        every { repository.findByEmailWithHash("alice@example.com") } returns UserWithHash(existing, "hashed")
-        every { passwordEncoder.matches("secret", "hashed") } returns true
+        every { authenticationManager.authenticate(UsernamePasswordAuthenticationToken("alice@example.com", "secret")) } returns authentication
         every { jwtService.generateTokenPair(AuthenticatedUser(existing.id, existing.email, existing.role)) } returns tokens
 
         val result = authService.login("alice@example.com", "secret")
@@ -80,30 +84,14 @@ internal class AuthServiceTest {
         assertThat(result.email).isEqualTo(existing.email)
         assertThat(result.username).isEqualTo(existing.username)
         assertThat(result.tokens).isEqualTo(tokens)
-
-        verify(exactly = 1) { passwordEncoder.matches("secret", "hashed") }
     }
 
     @Test
-    fun `login throws BadCredentialsException without checking the password when the email is unknown`() {
-        every { repository.findByEmailWithHash("nobody@example.com") } returns null
+    fun `login propagates BadCredentialsException from AuthenticationManager (unknown email or wrong password alike)`() {
+        every { authenticationManager.authenticate(any()) } throws BadCredentialsException("Bad credentials")
 
         assertThrows<BadCredentialsException> {
-            authService.login("nobody@example.com", "secret")
-        }
-
-        verify(exactly = 0) { passwordEncoder.matches(any(), any()) }
-        verify(exactly = 0) { jwtService.generateTokenPair(any()) }
-    }
-
-    @Test
-    fun `login throws BadCredentialsException when the password does not match the stored hash`() {
-        val existing = user()
-        every { repository.findByEmailWithHash(existing.email) } returns UserWithHash(existing, "hashed")
-        every { passwordEncoder.matches("wrong", "hashed") } returns false
-
-        assertThrows<BadCredentialsException> {
-            authService.login(existing.email, "wrong")
+            authService.login("nobody@example.com", "wrong")
         }
 
         verify(exactly = 0) { jwtService.generateTokenPair(any()) }
