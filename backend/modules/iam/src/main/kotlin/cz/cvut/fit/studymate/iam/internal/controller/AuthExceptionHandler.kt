@@ -1,5 +1,6 @@
 package cz.cvut.fit.studymate.iam.internal.controller
 
+import cz.cvut.fit.studymate.common.ErrorResponse
 import cz.cvut.fit.studymate.iam.internal.exception.InvalidTokenException
 import cz.cvut.fit.studymate.iam.internal.exception.UserNotFoundException
 import org.springframework.http.HttpStatus
@@ -8,7 +9,6 @@ import org.springframework.security.authentication.BadCredentialsException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 
-internal data class ErrorResponse(val message: String)
 
 @RestControllerAdvice
 internal class AuthExceptionHandler {

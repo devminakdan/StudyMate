@@ -40,7 +40,7 @@ internal class AuthService(
     fun refresh(refreshToken: String): TokenPair {
         val claims = try {
             jwtService.parseAndValidate(refreshToken)
-        } catch (e: JwtException) {
+        } catch (_: JwtException) {
             throw InvalidTokenException("Invalid refresh token")
         }
 

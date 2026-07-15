@@ -1,5 +1,6 @@
 package cz.cvut.fit.studymate.course.internal.controller
 
+import cz.cvut.fit.studymate.common.ErrorResponse
 import cz.cvut.fit.studymate.course.internal.exception.CourseAccessDeniedException
 import cz.cvut.fit.studymate.course.internal.exception.CourseNotFoundException
 import org.springframework.http.HttpStatus
@@ -8,7 +9,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 
-internal data class ErrorResponse(val message: String)
 
 @RestControllerAdvice
 internal class CourseExceptionHandler {
