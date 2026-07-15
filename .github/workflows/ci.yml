@@ -38,3 +38,40 @@ jobs:
 
       - name: Run tests
         run: cd backend && ./gradlew :iam:test
+
+  notify:
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          STATUS: ${{ needs.test.result }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          case "$STATUS" in
+            success)
+              EMOJI="✅"
+              STATUS_TEXT="Тесты прошли — можно мерджить"
+              ;;
+            failure)
+              EMOJI="❌"
+              STATUS_TEXT="Тесты упали"
+              ;;
+            *)
+              EMOJI="⚠️"
+              STATUS_TEXT="Тесты отменены (статус: $STATUS)"
+              ;;
+          esac
+
+          MESSAGE=$(printf '%s *%s*\n<%s|%s> (#%s)\n<%s|Открыть run>' \
+            "$EMOJI" "$STATUS_TEXT" "$PR_URL" "$PR_TITLE" "$PR_NUMBER" "$RUN_URL")
+
+          PAYLOAD=$(jq -n --arg text "$MESSAGE" '{text: $text}')
+
+          curl -sf -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "$SLACK_WEBHOOK_URL"
