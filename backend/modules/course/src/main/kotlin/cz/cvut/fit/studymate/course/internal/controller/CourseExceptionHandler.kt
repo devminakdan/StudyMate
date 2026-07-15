@@ -2,6 +2,7 @@ package cz.cvut.fit.studymate.course.internal.controller
 
 import cz.cvut.fit.studymate.common.ErrorResponse
 import cz.cvut.fit.studymate.course.internal.exception.CourseAccessDeniedException
+import cz.cvut.fit.studymate.course.internal.exception.CourseAlreadyExistsException
 import cz.cvut.fit.studymate.course.internal.exception.CourseNotFoundException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -22,6 +23,12 @@ internal class CourseExceptionHandler {
     fun handleCourseAccessDenied(ex: CourseAccessDeniedException): ResponseEntity<ErrorResponse> =
         ResponseEntity
             .status(HttpStatus.FORBIDDEN)
+            .body(ErrorResponse(ex.message!!))
+
+    @ExceptionHandler(CourseAlreadyExistsException::class)
+    fun handleCourseAlreadyExists(ex: CourseAlreadyExistsException): ResponseEntity<ErrorResponse> =
+        ResponseEntity
+            .status(HttpStatus.CONFLICT)
             .body(ErrorResponse(ex.message!!))
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
