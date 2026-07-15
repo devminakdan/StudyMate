@@ -32,6 +32,8 @@ dependencies {
     implementation("org.apache.tika:tika-core:2.9.2")
     implementation("org.apache.tika:tika-parsers-standard-package:2.9.2")
 
+    implementation("io.swagger.core.v3:swagger-annotations-jakarta:2.2.52")
+
     jooqGenerator("org.postgresql:postgresql:42.7.4")
 
     liquibaseRuntime("org.liquibase:liquibase-core:4.27.0")
@@ -39,6 +41,7 @@ dependencies {
     liquibaseRuntime("info.picocli:picocli:4.7.5")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:postgresql")
     testImplementation("org.testcontainers:kafka")

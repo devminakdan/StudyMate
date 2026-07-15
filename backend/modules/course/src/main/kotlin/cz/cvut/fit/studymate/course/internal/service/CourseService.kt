@@ -3,8 +3,10 @@ package cz.cvut.fit.studymate.course.internal.service
 import cz.cvut.fit.studymate.course.api.Course
 import cz.cvut.fit.studymate.course.api.CourseLookup
 import cz.cvut.fit.studymate.course.internal.exception.CourseAccessDeniedException
+import cz.cvut.fit.studymate.course.internal.exception.CourseAlreadyExistsException
 import cz.cvut.fit.studymate.course.internal.exception.CourseNotFoundException
 import cz.cvut.fit.studymate.course.internal.repository.CourseRepository
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import java.util.UUID
 
@@ -22,7 +24,11 @@ internal class CourseService(
     }
 
     fun createCourse(ownerId: UUID, name: String, code: String?, description: String?): Course =
-        courseRepository.create(ownerId, name, code, description)
+        try {
+            courseRepository.create(ownerId, name, code, description)
+        } catch (e: DataIntegrityViolationException) {
+            throw CourseAlreadyExistsException("You already have a course named '$name'")
+        }
 
     fun listCourses(ownerId: UUID, page: Int, size: Int): List<Course> =
         courseRepository.findByOwnerId(ownerId, limit = size, offset = page * size)
@@ -33,7 +39,11 @@ internal class CourseService(
 
     fun updateCourse(courseId: UUID, userId: UUID, name: String, code: String?, description: String?): Course {
         requireOwnership(courseId, userId)
-        return courseRepository.update(courseId, name, code, description)!!
+        return try {
+            courseRepository.update(courseId, name, code, description)!!
+        } catch (e: DataIntegrityViolationException) {
+            throw CourseAlreadyExistsException("You already have a course named '$name'")
+        }
     }
 
     fun deleteCourse(courseId: UUID, userId: UUID) {
