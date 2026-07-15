@@ -1,5 +1,6 @@
 package cz.cvut.fit.studymate.iam.internal.controller
 
+import cz.cvut.fit.studymate.common.ErrorResponse
 import cz.cvut.fit.studymate.iam.internal.dto.AuthResponse
 import cz.cvut.fit.studymate.iam.internal.dto.LoginRequest
 import cz.cvut.fit.studymate.iam.internal.dto.RegisterRequest
