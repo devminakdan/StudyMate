@@ -4,7 +4,7 @@ import java.io.InputStream
 
 interface StorageService {
     fun store(path: String, content: InputStream): StorageRef
-    fun retrieve(path: StorageRef): InputStream
-    fun delete(path: StorageRef)
-    fun exists(path: StorageRef): Boolean
+    fun retrieve(ref: StorageRef): InputStream
+    fun delete(ref: StorageRef)
+    fun exists(ref: StorageRef): Boolean
 }
