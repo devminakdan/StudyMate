@@ -25,7 +25,7 @@ internal class LocalFileStorage(
         val target = baseDir.resolve(path).normalize()
         require(target.startsWith(baseDir)) { "Invalid path: potential traversal attack" }
         Files.createDirectories(target.parent)
-        Files.copy(content, target, StandardCopyOption.REPLACE_EXISTING)
+        content.use { Files.copy(it, target, StandardCopyOption.REPLACE_EXISTING) }
         return StorageRef(path)
     }
 
