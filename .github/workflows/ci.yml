@@ -39,6 +39,9 @@ jobs:
       - name: Run iam tests
         run: cd backend && ./gradlew :iam:test
 
+      - name: Run course tests
+        run: cd backend && ./gradlew :course:test
+
       - name: Run storage tests
         run: cd backend && ./gradlew :storage:test
 
