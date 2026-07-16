@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/iam-changelog.yml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/course-changelog.yml
+      relativeToChangelogFile: false
