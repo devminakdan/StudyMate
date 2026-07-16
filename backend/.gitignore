@@ -27,5 +27,6 @@ application-local.yml
 .env
 .env.local
 
-# Storage (local file storage for dev)
-storage/
+# Storage (local file storage for dev) — anchored to repo root so it
+# doesn't also match the modules/storage Gradle module
+/storage/

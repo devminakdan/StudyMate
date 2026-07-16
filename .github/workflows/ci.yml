@@ -36,8 +36,14 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Run tests
-        run: cd backend && ./gradlew :iam:test :course:test
+      - name: Run iam tests
+        run: cd backend && ./gradlew :iam:test
+
+      - name: Run course tests
+        run: cd backend && ./gradlew :course:test
+
+      - name: Run storage tests
+        run: cd backend && ./gradlew :storage:test
 
   notify:
     needs: test
