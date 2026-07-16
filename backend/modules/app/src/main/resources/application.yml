@@ -33,6 +33,10 @@ studymate:
       cookie-secure: ${JWT_COOKIE_SECURE:false}
     cors:
       allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  storage:
+    provider: local
+    local:
+      base-path: storage
 
 server:
   port: 8080
