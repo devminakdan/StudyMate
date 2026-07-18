@@ -24,4 +24,12 @@ internal class LlmClientsConfig {
         @Value("\${studymate.ai.ollama.default-model}") defaultModel: String,
     ): OpenAiStyleLlmClient =
         OpenAiStyleLlmClient(restClientBuilder, baseUrl, null, defaultModel)
+
+
+
+    @Bean
+    fun anthropicLlmClient(
+        @Value("\${studymate.anthropic.api-key}") apiKey: String,
+        @Value("\${studymate.anthropic.default-model}") defaultModel: String,
+    ): AnthropicLlmClient = AnthropicLlmClient(apiKey, defaultModel)
 }
