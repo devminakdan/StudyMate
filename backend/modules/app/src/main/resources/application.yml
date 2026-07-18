@@ -37,6 +37,19 @@ studymate:
     provider: local
     local:
       base-path: storage
+  ai:
+    llm:
+      provider: groq   # groq | ollama | anthropic
+    groq:
+      base-url: https://api.groq.com/openai/v1
+      api-key: ${GROQ_API_KEY:}
+      default-model: llama-3.3-70b-versatile
+    ollama:
+      base-url: http://localhost:11434/v1
+      default-model: llama3.1:8b
+  anthropic:
+    api-key: ${ANTHROPIC_API_KEY:}
+    default-model: claude-sonnet-5
 
 server:
   port: 8080
