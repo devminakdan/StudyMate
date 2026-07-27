@@ -5,6 +5,7 @@ import cz.cvut.fit.studymate.course.internal.exception.CourseAccessDeniedExcepti
 import cz.cvut.fit.studymate.course.internal.exception.CourseAlreadyExistsException
 import cz.cvut.fit.studymate.course.internal.exception.CourseNotFoundException
 import cz.cvut.fit.studymate.course.internal.repository.CourseRepository
+import cz.cvut.fit.studymate.course.internal.repository.MaterialRepository
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -20,7 +21,8 @@ import java.util.UUID
 internal class CourseServiceTest {
 
     private val repository = mockk<CourseRepository>()
-    private val service = CourseService(repository)
+    private val materialRepository = mockk<MaterialRepository>()
+    private val service = CourseService(repository, materialRepository)
 
     private fun course(
         id: UUID = UUID.randomUUID(),
