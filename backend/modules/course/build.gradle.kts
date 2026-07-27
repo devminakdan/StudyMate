@@ -17,7 +17,7 @@ val liquibaseRuntime by configurations.creating
 dependencies {
     api(project(":common"))
     implementation(project(":iam"))
-    // TODO: add back once :storage module exists
+    implementation(project(":storage"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-security")
