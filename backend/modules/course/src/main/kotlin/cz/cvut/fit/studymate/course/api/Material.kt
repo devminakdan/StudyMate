@@ -12,5 +12,7 @@ data class Material(
     val sizeBytes: Long,
     val status: MaterialStatus,
     val pageCount: Int?,
-    val uploadedAt: OffsetDateTime
-)
+    val uploadedAt: OffsetDateTime,
+    val processedAt: OffsetDateTime?,
+    val errorMessage: String?
+    )
