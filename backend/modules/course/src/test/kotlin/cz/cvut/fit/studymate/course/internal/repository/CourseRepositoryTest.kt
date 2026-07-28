@@ -269,4 +269,18 @@ internal class CourseRepositoryTest {
     fun `delete does not throw for an unknown id`() {
         repository.delete(UUID.randomUUID())
     }
+
+    // ---- updateLastUsedAt ----
+
+    @Test
+    fun `updateLastUsedAt sets the column to at least the given timestamp`() {
+        val ownerId = createTestUser()
+        val created = repository.create(ownerId, "Name", null, null)
+        val beforeCall = OffsetDateTime.now()
+
+        repository.updateLastUsedAt(created.id, OffsetDateTime.now())
+
+        val stored = dsl.select(COURSES.LAST_USED_AT).from(COURSES).where(COURSES.ID.eq(created.id)).fetchOne(COURSES.LAST_USED_AT)
+        assertThat(stored!!).isAfterOrEqualTo(beforeCall)
+    }
 }
