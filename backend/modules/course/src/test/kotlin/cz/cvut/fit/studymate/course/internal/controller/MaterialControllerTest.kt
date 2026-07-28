@@ -155,6 +155,42 @@ internal class MaterialControllerTest {
             .andExpect(jsonPath("$.length()").value(2))
     }
 
+    @Test
+    fun `listMaterials passes explicit page and size to the service`() {
+        val courseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val materials = listOf(material(courseId = courseId), material(courseId = courseId))
+        every { service.listMaterials(courseId, userId, 2, 10) } returns materials
+        every { service.countMaterials(courseId, userId)} returns 5
+
+        mockMvc.perform(
+            get("/api/v1/courses/$courseId/materials")
+                .param("page", "2")
+                .param("size", "10")
+                .with(authenticatedAs(userId))
+        )
+            .andExpect(status().isOk)
+            .andExpect(header().string("X-Total-Count", "5"))
+    }
+
+    @Test
+    fun `listMaterials clamps an oversized size to the allowed maximum`() {
+        val courseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val materials = listOf(material(courseId = courseId), material(courseId = courseId))
+        every { service.listMaterials(courseId, userId, 2, 100) } returns materials
+        every { service.countMaterials(courseId, userId) } returns 5
+
+        mockMvc.perform(
+            get("/api/v1/courses/$courseId/materials")
+                .param("page", "2")
+                .param("size", "999999")
+                .with(authenticatedAs(userId))
+        )
+            .andExpect(status().isOk)
+            .andExpect(header().string("X-Total-Count", "5"))
+    }
+
     // ---- GET /api/v1/courses/{courseId}/materials/{materialId} ----
 
     @Test
