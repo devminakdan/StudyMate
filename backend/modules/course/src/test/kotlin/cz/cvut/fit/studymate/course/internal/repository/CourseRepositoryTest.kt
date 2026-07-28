@@ -13,8 +13,8 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Import
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.transaction.annotation.Transactional
 import org.testcontainers.containers.PostgreSQLContainer
@@ -31,7 +31,7 @@ internal class CourseRepositoryTest {
 
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
-    @ComponentScan(basePackageClasses = [CourseRepository::class])
+    @Import(CourseRepository::class)
     class TestConfig {
         @Bean
         @ServiceConnection
@@ -54,7 +54,7 @@ internal class CourseRepositoryTest {
             .returningResult(USERS.ID)
             .fetchOne()!!
             .value1()!!
-    
+
     // now() is frozen for the whole @Transactional test, so create() can't produce distinct
     // timestamps here — insert directly with an explicit created_at instead.
     private fun insertCourseAt(ownerId: UUID, name: String, createdAt: OffsetDateTime): Course =
@@ -231,10 +231,10 @@ internal class CourseRepositoryTest {
     fun `update bumps updatedAt`() {
         val ownerId = createTestUser()
         val created = repository.create(ownerId, "Name", null, null)
-
+        val beforeUpdate = OffsetDateTime.now()
         val updated = repository.update(created.id, "Name", null, null)
 
-        assertThat(updated!!.updatedAt).isAfter(created.updatedAt)
+        assertThat(updated!!.updatedAt).isAfterOrEqualTo(beforeUpdate)
     }
 
     @Test

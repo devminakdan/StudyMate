@@ -2,17 +2,20 @@ package cz.cvut.fit.studymate.course.internal.service
 
 import cz.cvut.fit.studymate.course.api.Course
 import cz.cvut.fit.studymate.course.api.CourseLookup
+import cz.cvut.fit.studymate.course.api.Material
 import cz.cvut.fit.studymate.course.internal.exception.CourseAccessDeniedException
 import cz.cvut.fit.studymate.course.internal.exception.CourseAlreadyExistsException
 import cz.cvut.fit.studymate.course.internal.exception.CourseNotFoundException
 import cz.cvut.fit.studymate.course.internal.repository.CourseRepository
+import cz.cvut.fit.studymate.course.internal.repository.MaterialRepository
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import java.util.UUID
 
 @Service
 internal class CourseService(
-    private val courseRepository: CourseRepository
+    private val courseRepository: CourseRepository,
+    private val materialRepository: MaterialRepository
 ) : CourseLookup {
     private fun requireOwnership(courseId: UUID, userId: UUID): Course {
         val course = courseRepository.findById(courseId)
@@ -54,4 +57,8 @@ internal class CourseService(
     override fun findCourseById(id: UUID) = courseRepository.findById(id)
 
     override fun isOwner(courseId: UUID, userId: UUID) = courseRepository.findById(courseId)?.ownerId == userId
+
+    override fun findMaterialById(id: UUID) = materialRepository.findById(id)
+
+    override fun findMaterialsByCourse(courseId: UUID) = materialRepository.findAllByCourseId(courseId)
 }
