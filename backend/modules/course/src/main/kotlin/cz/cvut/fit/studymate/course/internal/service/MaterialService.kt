@@ -49,6 +49,15 @@ internal class MaterialService(
         return material
     }
 
+    private fun buildStoragePath(userId: UUID, courseId: UUID, originalFilename: String): String {
+        val sanitized = sanitizeFilename(originalFilename)
+        return "user_${userId}/course_${courseId}/${UUID.randomUUID()}_${sanitized}"
+    }
+
+    private fun sanitizeFilename(filename: String): String {
+        return filename.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+    }
+
     fun uploadMaterial(courseId: UUID, userId: UUID, file: MultipartFile) : Material {
         requireOwnership(courseId, userId)
         if (file.isEmpty) throw InvalidMaterialException("File is empty")
@@ -61,7 +70,7 @@ internal class MaterialService(
             throw InvalidMaterialException("Unsupported file type: $detectedType")
         }
 
-        val path = "materials/$courseId/${UUID.randomUUID()}-$originalFilename"
+        val path = buildStoragePath(userId, courseId, originalFilename)
         val ref = storageService.store(path, ByteArrayInputStream(bytes))
 
         val created = materialRepository.create(

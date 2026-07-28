@@ -16,6 +16,7 @@ import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -120,6 +121,37 @@ internal class MaterialServiceTest {
 
         assertThat(result).isEqualTo(created)
         verify(exactly = 1) { kafkaTemplate.send("studymate.material.uploaded", created.id.toString(), any()) }
+    }
+
+    @Test
+    fun `uploadMaterial stores the file under the structured user_courseId path scheme`() {
+        val existing = course()
+        val created = material(courseId = existing.id)
+        val pathSlot = slot<String>()
+        every { courseLookup.findCourseById(existing.id) } returns existing
+        every { storageService.store(capture(pathSlot), any()) } returns StorageRef(created.storagePath)
+        every { materialRepository.create(existing.id, "lecture.pdf", created.storagePath, "application/pdf", any()) } returns created
+        every { kafkaTemplate.send(any<String>(), any(), any()) } returns mockk()
+
+        service.uploadMaterial(existing.id, existing.ownerId, pdfFile())
+
+        assertThat(pathSlot.captured).startsWith("user_${existing.ownerId}/course_${existing.id}/")
+        assertThat(pathSlot.captured).endsWith("_lecture.pdf")
+    }
+
+    @Test
+    fun `uploadMaterial sanitizes special characters in the filename before building the storage path`(){
+        val existing = course()
+        val created = material(courseId = existing.id)
+        val pathSlot = slot<String>()
+        every { courseLookup.findCourseById(existing.id) } returns existing
+        every { storageService.store(capture(pathSlot), any()) } returns StorageRef(created.storagePath)
+        every { materialRepository.create(existing.id, "Lecture #1 (final).pdf", created.storagePath, "application/pdf", any()) } returns created
+        every { kafkaTemplate.send(any<String>(), any(), any()) } returns mockk()
+
+        service.uploadMaterial(existing.id, existing.ownerId, pdfFile("Lecture #1 (final).pdf"))
+
+        assertThat(pathSlot.captured).endsWith("_Lecture__1__final_.pdf")
     }
 
     // ---- listMaterials / countMaterials ----
