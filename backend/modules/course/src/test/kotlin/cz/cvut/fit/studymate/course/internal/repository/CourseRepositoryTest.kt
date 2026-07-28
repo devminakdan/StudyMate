@@ -13,8 +13,8 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Import
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.transaction.annotation.Transactional
 import org.testcontainers.containers.PostgreSQLContainer
@@ -31,7 +31,7 @@ internal class CourseRepositoryTest {
 
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
-    @ComponentScan(basePackageClasses = [CourseRepository::class])
+    @Import(CourseRepository::class)
     class TestConfig {
         @Bean
         @ServiceConnection
