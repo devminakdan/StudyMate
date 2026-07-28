@@ -1,6 +1,7 @@
 package cz.cvut.fit.studymate.course.internal.service
 
 import cz.cvut.fit.studymate.course.api.Course
+import cz.cvut.fit.studymate.course.api.CourseActivityTracker
 import cz.cvut.fit.studymate.course.api.CourseLookup
 import cz.cvut.fit.studymate.course.api.Material
 import cz.cvut.fit.studymate.course.internal.exception.CourseAccessDeniedException
@@ -10,13 +11,14 @@ import cz.cvut.fit.studymate.course.internal.repository.CourseRepository
 import cz.cvut.fit.studymate.course.internal.repository.MaterialRepository
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
+import java.time.OffsetDateTime
 import java.util.UUID
 
 @Service
 internal class CourseService(
     private val courseRepository: CourseRepository,
     private val materialRepository: MaterialRepository
-) : CourseLookup {
+) : CourseLookup, CourseActivityTracker {
     private fun requireOwnership(courseId: UUID, userId: UUID): Course {
         val course = courseRepository.findById(courseId)
             ?: throw CourseNotFoundException(courseId)
@@ -61,4 +63,8 @@ internal class CourseService(
     override fun findMaterialById(id: UUID) = materialRepository.findById(id)
 
     override fun findMaterialsByCourse(courseId: UUID) = materialRepository.findAllByCourseId(courseId)
+
+    override fun markUsed(courseId: UUID) {
+        courseRepository.updateLastUsedAt(courseId, OffsetDateTime.now())
+    }
 }

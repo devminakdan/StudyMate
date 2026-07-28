@@ -62,4 +62,11 @@ fun findById(id : UUID) : Course? {
             .where(COURSES.ID.eq(id))
             .execute()
     }
+
+    fun updateLastUsedAt(courseId: UUID, timestamp: OffsetDateTime) {
+        dsl.update(COURSES)
+            .set(COURSES.LAST_USED_AT, timestamp)
+            .where(COURSES.ID.eq(courseId))
+            .execute()
+    }
 }
