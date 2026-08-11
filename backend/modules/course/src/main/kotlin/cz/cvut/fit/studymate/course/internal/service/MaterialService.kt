@@ -25,7 +25,8 @@ internal class MaterialService(
     private val materialRepository: MaterialRepository,
     private val courseLookup: CourseLookup,
     private val storageService: StorageService,
-    private val kafkaTemplate: KafkaTemplate<String, MaterialUploadedEvent>
+    private val kafkaTemplate: KafkaTemplate<String, MaterialUploadedEvent>,
+    private val quotaService: QuotaService
 ) : MaterialStatusUpdater {
     companion object {
         private const val MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024L // 20MB
@@ -69,6 +70,7 @@ internal class MaterialService(
         if (detectedType !in ALLOWED_MIME_TYPES) {
             throw InvalidMaterialException("Unsupported file type: $detectedType")
         }
+        quotaService.checkQuota(userId, file.size)
 
         val path = buildStoragePath(userId, courseId, originalFilename)
         val ref = storageService.store(path, ByteArrayInputStream(bytes))
