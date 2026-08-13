@@ -7,10 +7,10 @@ import org.springframework.stereotype.Component
 
 @Component
 class LlmClientFactory(
-    @Qualifier("groqLlmClient") private val groq: LlmClient,
-    @Qualifier("ollamaLlmClient") private val ollama: LlmClient,
-    @Qualifier("anthropicLlmClient") private val anthropic: LlmClient,
-    @Value("\${studymate.ai.llm.provider}") private val provider: String,
+    @param:Qualifier("groqLlmClient") private val groq: LlmClient,
+    @param:Qualifier("ollamaLlmClient") private val ollama: LlmClient,
+    @param:Qualifier("anthropicLlmClient") private val anthropic: LlmClient,
+    @param:Value("\${studymate.ai.llm.provider}") private val provider: String,
 ) {
 
     fun getClient(): LlmClient {
