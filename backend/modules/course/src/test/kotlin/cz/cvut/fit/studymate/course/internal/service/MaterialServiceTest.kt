@@ -9,6 +9,7 @@ import cz.cvut.fit.studymate.course.internal.exception.CourseAccessDeniedExcepti
 import cz.cvut.fit.studymate.course.internal.exception.CourseNotFoundException
 import cz.cvut.fit.studymate.course.internal.exception.InvalidMaterialException
 import cz.cvut.fit.studymate.course.internal.exception.MaterialNotFoundException
+import cz.cvut.fit.studymate.course.internal.exception.QuotaExceededException
 import cz.cvut.fit.studymate.course.internal.repository.MaterialRepository
 import cz.cvut.fit.studymate.storage.api.StorageRef
 import cz.cvut.fit.studymate.storage.api.StorageService
@@ -32,7 +33,8 @@ internal class MaterialServiceTest {
     private val courseLookup = mockk<CourseLookup>()
     private val storageService = mockk<StorageService>()
     private val kafkaTemplate = mockk<KafkaTemplate<String, MaterialUploadedEvent>>()
-    private val service = MaterialService(materialRepository, courseLookup, storageService, kafkaTemplate)
+    private val quotaService = mockk<QuotaService>()
+    private val service = MaterialService(materialRepository, courseLookup, storageService, kafkaTemplate, quotaService)
 
     private fun course(
         id: UUID = UUID.randomUUID(),
@@ -111,6 +113,7 @@ internal class MaterialServiceTest {
         val existing = course()
         val created = material(courseId = existing.id)
         every { courseLookup.findCourseById(existing.id) } returns existing
+        every { quotaService.checkQuota(any(), any()) } just Runs
         every { storageService.store(any(), any()) } returns StorageRef(created.storagePath)
         every {
             materialRepository.create(existing.id, "lecture.pdf", created.storagePath, "application/pdf", any())
@@ -129,6 +132,7 @@ internal class MaterialServiceTest {
         val created = material(courseId = existing.id)
         val pathSlot = slot<String>()
         every { courseLookup.findCourseById(existing.id) } returns existing
+        every { quotaService.checkQuota(any(), any()) } just Runs
         every { storageService.store(capture(pathSlot), any()) } returns StorageRef(created.storagePath)
         every { materialRepository.create(existing.id, "lecture.pdf", created.storagePath, "application/pdf", any()) } returns created
         every { kafkaTemplate.send(any<String>(), any(), any()) } returns mockk()
@@ -145,6 +149,7 @@ internal class MaterialServiceTest {
         val created = material(courseId = existing.id)
         val pathSlot = slot<String>()
         every { courseLookup.findCourseById(existing.id) } returns existing
+        every { quotaService.checkQuota(any(), any()) } just Runs
         every { storageService.store(capture(pathSlot), any()) } returns StorageRef(created.storagePath)
         every { materialRepository.create(existing.id, "Lecture #1 (final).pdf", created.storagePath, "application/pdf", any()) } returns created
         every { kafkaTemplate.send(any<String>(), any(), any()) } returns mockk()
@@ -152,6 +157,20 @@ internal class MaterialServiceTest {
         service.uploadMaterial(existing.id, existing.ownerId, pdfFile("Lecture #1 (final).pdf"))
 
         assertThat(pathSlot.captured).endsWith("_Lecture__1__final_.pdf")
+    }
+
+    @Test
+    fun `uploadMaterial throws QuotaExceededException without storing the file when the quota would be exceeded`() {
+        val existing = course()
+        every { courseLookup.findCourseById(existing.id) } returns existing
+        every { quotaService.checkQuota(existing.ownerId, any()) } throws
+            QuotaExceededException(99_614_720L, 104_857_600L, 10_485_760L)
+
+        assertThrows<QuotaExceededException> {
+            service.uploadMaterial(existing.id, existing.ownerId, pdfFile())
+        }
+
+        verify(exactly = 0) { storageService.store(any(), any()) }
     }
 
     // ---- listMaterials / countMaterials ----

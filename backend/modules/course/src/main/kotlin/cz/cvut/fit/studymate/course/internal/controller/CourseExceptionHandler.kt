@@ -6,6 +6,7 @@ import cz.cvut.fit.studymate.course.internal.exception.CourseAlreadyExistsExcept
 import cz.cvut.fit.studymate.course.internal.exception.CourseNotFoundException
 import cz.cvut.fit.studymate.course.internal.exception.InvalidMaterialException
 import cz.cvut.fit.studymate.course.internal.exception.MaterialNotFoundException
+import cz.cvut.fit.studymate.course.internal.exception.QuotaExceededException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -49,5 +50,11 @@ internal class CourseExceptionHandler {
     fun handleInvalidMaterial(ex: InvalidMaterialException): ResponseEntity<ErrorResponse> =
         ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
+            .body(ErrorResponse(ex.message!!))
+
+    @ExceptionHandler(QuotaExceededException::class)
+    fun handleQuotaExceeded(ex: QuotaExceededException): ResponseEntity<ErrorResponse> =
+        ResponseEntity
+            .status(HttpStatus.PAYLOAD_TOO_LARGE)
             .body(ErrorResponse(ex.message!!))
 }
