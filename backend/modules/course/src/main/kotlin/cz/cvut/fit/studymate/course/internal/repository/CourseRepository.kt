@@ -69,4 +69,11 @@ fun findById(id : UUID) : Course? {
             .where(COURSES.ID.eq(courseId))
             .execute()
     }
+
+    fun findAllByOwnerIdOrderedByLastUsed(ownerId: UUID): List<Course> {
+        return dsl.selectFrom(COURSES)
+            .where(COURSES.OWNER_ID.eq(ownerId))
+            .orderBy(COURSES.LAST_USED_AT.asc().nullsFirst())
+            .fetchInto(Course::class.java)
+    }
 }

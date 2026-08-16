@@ -10,5 +10,6 @@ data class Course(
     val code: String?,
     val description: String?,
     val createdAt: OffsetDateTime,
-    val updatedAt: OffsetDateTime
+    val updatedAt: OffsetDateTime,
+    val lastUsedAt: OffsetDateTime? = null,
 )
