@@ -283,4 +283,28 @@ internal class CourseRepositoryTest {
         val stored = dsl.select(COURSES.LAST_USED_AT).from(COURSES).where(COURSES.ID.eq(created.id)).fetchOne(COURSES.LAST_USED_AT)
         assertThat(stored!!).isAfterOrEqualTo(beforeCall)
     }
+
+    // ---- findAllByOwnerIdOrderedByLastUsed ----
+
+    @Test
+    fun `findAllByOwnerIdOrderedByLastUsed puts never-used courses first, then oldest-used to newest-used`() {
+        val ownerId = createTestUser()
+        val neverUsed = repository.create(ownerId, "Never used", null, null)
+        val usedLongAgo = repository.create(ownerId, "Used long ago", null, null)
+        val usedRecently = repository.create(ownerId, "Used recently", null, null)
+        val now = OffsetDateTime.now()
+        repository.updateLastUsedAt(usedLongAgo.id, now.minusDays(10))
+        repository.updateLastUsedAt(usedRecently.id, now)
+
+        val result = repository.findAllByOwnerIdOrderedByLastUsed(ownerId)
+
+        assertThat(result.map { it.id }).containsExactly(neverUsed.id, usedLongAgo.id, usedRecently.id)
+    }
+
+    @Test
+    fun `findAllByOwnerIdOrderedByLastUsed returns an empty list when the owner has no courses`() {
+        val ownerId = createTestUser()
+
+        assertThat(repository.findAllByOwnerIdOrderedByLastUsed(ownerId)).isEmpty()
+    }
 }
