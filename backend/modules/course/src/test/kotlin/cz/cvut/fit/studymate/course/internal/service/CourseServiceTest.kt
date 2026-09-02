@@ -6,9 +6,7 @@ import cz.cvut.fit.studymate.course.internal.exception.CourseAlreadyExistsExcept
 import cz.cvut.fit.studymate.course.internal.exception.CourseNotFoundException
 import cz.cvut.fit.studymate.course.internal.repository.CourseRepository
 import cz.cvut.fit.studymate.course.internal.repository.MaterialRepository
-import io.mockk.Runs
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
@@ -111,8 +109,7 @@ internal class CourseServiceTest {
     fun `updateCourse updates and returns the course when the caller is the owner`() {
         val existing = course()
         val updated = existing.copy(name = "New name")
-        every { repository.findById(existing.id) } returns existing
-        every { repository.update(existing.id, "New name", existing.code, existing.description) } returns updated
+        every { repository.updateOwned(existing.id, existing.ownerId, "New name", existing.code, existing.description) } returns updated
 
         val result = service.updateCourse(existing.id, existing.ownerId, "New name", existing.code, existing.description)
 
@@ -120,35 +117,21 @@ internal class CourseServiceTest {
     }
 
     @Test
-    fun `updateCourse throws CourseNotFoundException without calling repository-update when no course exists`() {
+    fun `updateCourse throws CourseNotFoundException when no owned course is updated`() {
         val courseId = UUID.randomUUID()
-        every { repository.findById(courseId) } returns null
+        val userId = UUID.randomUUID()
+        every { repository.updateOwned(courseId, userId, "New name", null, null) } returns null
 
         assertThrows<CourseNotFoundException> {
-            service.updateCourse(courseId, UUID.randomUUID(), "New name", null, null)
+            service.updateCourse(courseId, userId, "New name", null, null)
         }
-
-        verify(exactly = 0) { repository.update(any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun `updateCourse throws CourseAccessDeniedException without calling repository-update when the caller isn't the owner`() {
-        val course = course()
-        every { repository.findById(course.id) } returns course
-
-        assertThrows<CourseAccessDeniedException> {
-            service.updateCourse(course.id, UUID.randomUUID(), "New name", null, null)
-        }
-
-        verify(exactly = 0) { repository.update(any(), any(), any(), any()) }
     }
 
     @Test
     fun `updateCourse throws CourseAlreadyExistsException when the repository reports a duplicate name`() {
         val course = course()
-        every { repository.findById(course.id) } returns course
         every {
-            repository.update(course.id, "Taken name", course.code, course.description)
+            repository.updateOwned(course.id, course.ownerId, "Taken name", course.code, course.description)
         } throws DataIntegrityViolationException("duplicate key")
 
         assertThrows<CourseAlreadyExistsException> {
@@ -159,36 +142,22 @@ internal class CourseServiceTest {
     @Test
     fun `deleteCourse deletes the course when the caller is the owner`() {
         val course = course()
-        every { repository.findById(course.id) } returns course
-        every { repository.delete(course.id) } just Runs
+        every { repository.deleteOwned(course.id, course.ownerId) } returns true
 
         service.deleteCourse(course.id, course.ownerId)
 
-        verify(exactly = 1) { repository.delete(course.id) }
+        verify(exactly = 1) { repository.deleteOwned(course.id, course.ownerId) }
     }
 
     @Test
-    fun `deleteCourse throws CourseNotFoundException without deleting when no course exists`() {
+    fun `deleteCourse throws CourseNotFoundException when no owned course is deleted`() {
         val courseId = UUID.randomUUID()
-        every { repository.findById(courseId) } returns null
+        val userId = UUID.randomUUID()
+        every { repository.deleteOwned(courseId, userId) } returns false
 
         assertThrows<CourseNotFoundException> {
-            service.deleteCourse(courseId, UUID.randomUUID())
+            service.deleteCourse(courseId, userId)
         }
-
-        verify(exactly = 0) { repository.delete(any()) }
-    }
-
-    @Test
-    fun `deleteCourse throws CourseAccessDeniedException without deleting when the caller isn't the owner`() {
-        val course = course()
-        every { repository.findById(course.id) } returns course
-
-        assertThrows<CourseAccessDeniedException> {
-            service.deleteCourse(course.id, UUID.randomUUID())
-        }
-
-        verify(exactly = 0) { repository.delete(any()) }
     }
 
     @Test

@@ -43,17 +43,18 @@ internal class CourseService(
     fun getCourse(courseId: UUID, userId: UUID) = requireOwnership(courseId, userId)
 
     fun updateCourse(courseId: UUID, userId: UUID, name: String, code: String?, description: String?): Course {
-        requireOwnership(courseId, userId)
         return try {
-            courseRepository.update(courseId, name, code, description)!!
+            courseRepository.updateOwned(courseId, userId, name, code, description)
+                ?: throw CourseNotFoundException(courseId)
         } catch (e: DataIntegrityViolationException) {
             throw CourseAlreadyExistsException("You already have a course named '$name'")
         }
     }
 
     fun deleteCourse(courseId: UUID, userId: UUID) {
-        requireOwnership(courseId, userId)
-        courseRepository.delete(courseId)
+        if (!courseRepository.deleteOwned(courseId, userId)) {
+            throw CourseNotFoundException(courseId)
+        }
     }
 
     override fun findCourseById(id: UUID) = courseRepository.findById(id)
