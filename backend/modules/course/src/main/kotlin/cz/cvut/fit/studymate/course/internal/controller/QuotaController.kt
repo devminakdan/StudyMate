@@ -1,7 +1,9 @@
 package cz.cvut.fit.studymate.course.internal.controller
 
 import cz.cvut.fit.studymate.course.internal.dto.QuotaResponse
+import cz.cvut.fit.studymate.course.internal.dto.StorageOverviewResponse
 import cz.cvut.fit.studymate.course.internal.service.QuotaService
+import cz.cvut.fit.studymate.course.internal.service.StorageOverviewService
 import cz.cvut.fit.studymate.course.internal.service.StorageQuota
 import cz.cvut.fit.studymate.iam.api.AuthenticatedUser
 import io.swagger.v3.oas.annotations.Operation
@@ -20,7 +22,8 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api/v1/users/me")
 internal class QuotaController(
-    private val quotaService: QuotaService
+    private val quotaService: QuotaService,
+    private val storageOverviewService: StorageOverviewService,
 ) {
     @Operation(
         summary = "Get the current user's storage quota",
@@ -37,4 +40,17 @@ internal class QuotaController(
             usedBytes = quotaService.getUserStorageUsage(user.id),
             limitBytes = StorageQuota.FREE_TIER_BYTES,
         )
+
+    @Operation(
+        summary = "Get the current user's storage overview",
+        description = "Returns every course owned by the current user with its storage footprint and materials, sorted so the least recently used courses come first.",
+    )
+    @SecurityRequirement(name = "accessTokenCookie")
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "Storage overview", content = [Content(schema = Schema(implementation = StorageOverviewResponse::class))]),
+        ApiResponse(responseCode = "403", description = "No access_token cookie, or it's missing/invalid/unparseable", content = [Content()]),
+    )
+    @GetMapping("/storage-overview")
+    fun getStorageOverview(@AuthenticationPrincipal user: AuthenticatedUser): StorageOverviewResponse =
+        storageOverviewService.getStorageOverview(user.id)
 }
