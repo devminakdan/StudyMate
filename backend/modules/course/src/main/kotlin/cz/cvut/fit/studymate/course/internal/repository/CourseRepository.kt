@@ -26,8 +26,8 @@ internal class CourseRepository(
             .fetchOneInto(Course::class.java)!!
     }
 
-fun findById(id : UUID) : Course? {
-    return dsl.selectFrom(COURSES)
+    fun findById(id: UUID): Course? {
+        return dsl.selectFrom(COURSES)
             .where(COURSES.ID.eq(id))
             .fetchOneInto(Course::class.java)
     }
@@ -44,7 +44,7 @@ fun findById(id : UUID) : Course? {
     fun countByOwnerId(ownerId: UUID): Int =
         dsl.fetchCount(COURSES, COURSES.OWNER_ID.eq(ownerId))
 
-    fun update(id: UUID, name: String, code: String?, description: String?) : Course? {
+    fun updateOwned(id: UUID, ownerId: UUID, name: String, code: String?, description: String?) : Course? {
         val now = OffsetDateTime.now()
 
         return dsl.update(COURSES)
@@ -53,14 +53,16 @@ fun findById(id : UUID) : Course? {
             .set(COURSES.DESCRIPTION, description)
             .set(COURSES.UPDATED_AT, now)
             .where(COURSES.ID.eq(id))
+            .and(COURSES.OWNER_ID.eq(ownerId))
             .returning()
             .fetchOneInto(Course::class.java)
     }
 
-    fun delete(id: UUID) {
-        dsl.deleteFrom(COURSES)
+    fun deleteOwned(id: UUID, ownerId: UUID): Boolean {
+        return dsl.deleteFrom(COURSES)
             .where(COURSES.ID.eq(id))
-            .execute()
+            .and(COURSES.OWNER_ID.eq(ownerId))
+            .execute() == 1
     }
 
     fun updateLastUsedAt(courseId: UUID, timestamp: OffsetDateTime) {

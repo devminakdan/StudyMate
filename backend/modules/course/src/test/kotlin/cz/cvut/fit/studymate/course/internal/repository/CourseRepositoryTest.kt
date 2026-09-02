@@ -202,14 +202,14 @@ internal class CourseRepositoryTest {
         assertThat(repository.countByOwnerId(ownerId)).isEqualTo(0)
     }
 
-    // ---- update ----
+    // ---- updateOwned ----
 
     @Test
-    fun `update changes fields and returns the updated course`() {
+    fun `updateOwned changes fields and returns the updated course`() {
         val ownerId = createTestUser()
         val created = repository.create(ownerId, "Old name", "OLD", "Old description")
 
-        val updated = repository.update(created.id, "New name", "NEW", "New description")
+        val updated = repository.updateOwned(created.id, ownerId, "New name", "NEW", "New description")
 
         assertThat(updated).isNotNull()
         assertThat(updated!!.name).isEqualTo("New name")
@@ -218,56 +218,81 @@ internal class CourseRepositoryTest {
     }
 
     @Test
-    fun `update is visible through a subsequent findById`() {
+    fun `updateOwned is visible through a subsequent findById`() {
         val ownerId = createTestUser()
         val created = repository.create(ownerId, "Old name", null, null)
 
-        repository.update(created.id, "New name", null, null)
+        repository.updateOwned(created.id, ownerId, "New name", null, null)
 
         assertThat(repository.findById(created.id)!!.name).isEqualTo("New name")
     }
 
     @Test
-    fun `update bumps updatedAt`() {
+    fun `updateOwned bumps updatedAt`() {
         val ownerId = createTestUser()
         val created = repository.create(ownerId, "Name", null, null)
         val beforeUpdate = OffsetDateTime.now()
-        val updated = repository.update(created.id, "Name", null, null)
+        val updated = repository.updateOwned(created.id, ownerId, "Name", null, null)
 
         assertThat(updated!!.updatedAt).isAfterOrEqualTo(beforeUpdate)
     }
 
     @Test
-    fun `update returns null when no course exists with that id`() {
-        assertThat(repository.update(UUID.randomUUID(), "Doesn't matter", null, null)).isNull()
+    fun `updateOwned returns null when no course exists with that id`() {
+        assertThat(repository.updateOwned(UUID.randomUUID(), UUID.randomUUID(), "Doesn't matter", null, null)).isNull()
     }
 
     @Test
-    fun `update throws when renaming to a name the owner already has on another course`() {
+    fun `updateOwned returns null and leaves the course unchanged when ownerId does not match`() {
+        val ownerId = createTestUser()
+        val otherOwnerId = createTestUser()
+        val created = repository.create(ownerId, "Original", "OLD", "Old description")
+
+        val updated = repository.updateOwned(created.id, otherOwnerId, "New name", "NEW", "New description")
+
+        assertThat(updated).isNull()
+        assertThat(repository.findById(created.id)).isEqualTo(created)
+    }
+
+    @Test
+    fun `updateOwned throws when renaming to a name the owner already has on another course`() {
         val ownerId = createTestUser()
         repository.create(ownerId, "Taken", null, null)
         val other = repository.create(ownerId, "Other", null, null)
 
         assertThrows<DataIntegrityViolationException> {
-            repository.update(other.id, "Taken", null, null)
+            repository.updateOwned(other.id, ownerId, "Taken", null, null)
         }
     }
 
-    // ---- delete ----
+    // ---- deleteOwned ----
 
     @Test
-    fun `delete removes the course`() {
+    fun `deleteOwned removes the course and returns true`() {
         val ownerId = createTestUser()
         val created = repository.create(ownerId, "To delete", null, null)
 
-        repository.delete(created.id)
+        val deleted = repository.deleteOwned(created.id, ownerId)
 
+        assertThat(deleted).isTrue()
         assertThat(repository.findById(created.id)).isNull()
     }
 
     @Test
-    fun `delete does not throw for an unknown id`() {
-        repository.delete(UUID.randomUUID())
+    fun `deleteOwned returns false for an unknown id`() {
+        assertThat(repository.deleteOwned(UUID.randomUUID(), UUID.randomUUID())).isFalse()
+    }
+
+    @Test
+    fun `deleteOwned returns false and leaves the course unchanged when ownerId does not match`() {
+        val ownerId = createTestUser()
+        val otherOwnerId = createTestUser()
+        val created = repository.create(ownerId, "To keep", null, null)
+
+        val deleted = repository.deleteOwned(created.id, otherOwnerId)
+
+        assertThat(deleted).isFalse()
+        assertThat(repository.findById(created.id)).isEqualTo(created)
     }
 
     // ---- updateLastUsedAt ----
