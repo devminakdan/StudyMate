@@ -139,6 +139,33 @@ internal class MaterialRepositoryTest {
         assertThat(repository.findById(UUID.randomUUID())).isNull()
     }
 
+    // ---- existsOwnedCourse ----
+
+    @Test
+    fun `existsOwnedCourse returns true only when the owner matches`() {
+        val ownerId = createTestUser()
+        val otherOwnerId = createTestUser()
+        val courseId = createTestCourse(ownerId)
+
+        assertThat(repository.existsOwnedCourse(courseId, ownerId)).isTrue()
+        assertThat(repository.existsOwnedCourse(courseId, otherOwnerId)).isFalse()
+        assertThat(repository.existsOwnedCourse(UUID.randomUUID(), ownerId)).isFalse()
+    }
+
+    // ---- findByIdInOwnedCourse ----
+
+    @Test
+    fun `findByIdInOwnedCourse returns the material only when course owner matches`() {
+        val ownerId = createTestUser()
+        val otherOwnerId = createTestUser()
+        val courseId = createTestCourse(ownerId)
+        val material = repository.create(courseId, "test.pdf", "materials/$courseId/${UUID.randomUUID()}-test.pdf", "application/pdf", 1024L)
+
+        assertThat(repository.findByIdInOwnedCourse(material.id, courseId, ownerId)).isEqualTo(material)
+        assertThat(repository.findByIdInOwnedCourse(material.id, courseId, otherOwnerId)).isNull()
+        assertThat(repository.findByIdInOwnedCourse(material.id, UUID.randomUUID(), ownerId)).isNull()
+    }
+
     // ---- findByCourseIdWithPagination ----
 
     @Test
@@ -196,6 +223,19 @@ internal class MaterialRepositoryTest {
         assertThat(repository.findByCourseIdWithPagination(courseId, limit = 10, offset = 0)).isEmpty()
     }
 
+    @Test
+    fun `findByCourseIdWithPagination with ownerId returns materials only for owned courses`() {
+        val ownerId = createTestUser()
+        val otherOwnerId = createTestUser()
+        val courseId = createTestCourse(ownerId)
+        val material = repository.create(courseId, "test.pdf", "materials/$courseId/${UUID.randomUUID()}-test.pdf", "application/pdf", 1024L)
+
+        assertThat(repository.findByCourseIdWithPagination(courseId, ownerId, limit = 10, offset = 0))
+            .containsExactly(material)
+        assertThat(repository.findByCourseIdWithPagination(courseId, otherOwnerId, limit = 10, offset = 0))
+            .isEmpty()
+    }
+
     // ---- findAllByCourseId ----
 
     @Test
@@ -244,6 +284,18 @@ internal class MaterialRepositoryTest {
         val courseId = createTestCourse(ownerId)
 
         assertThat(repository.countByCourseId(courseId)).isEqualTo(0)
+    }
+
+    @Test
+    fun `countByCourseId with ownerId counts materials only for owned courses`() {
+        val ownerId = createTestUser()
+        val otherOwnerId = createTestUser()
+        val courseId = createTestCourse(ownerId)
+
+        repository.create(courseId, "test.pdf", "materials/$courseId/${UUID.randomUUID()}-test.pdf", "application/pdf", 1024L)
+
+        assertThat(repository.countByCourseId(courseId, ownerId)).isEqualTo(1)
+        assertThat(repository.countByCourseId(courseId, otherOwnerId)).isEqualTo(0)
     }
 
     // ---- updateStatus ----
@@ -315,5 +367,19 @@ internal class MaterialRepositoryTest {
     @Test
     fun `delete does not throw for an unknown id`() {
         repository.delete(UUID.randomUUID())
+    }
+
+    @Test
+    fun `deleteFromOwnedCourse removes the material only when course owner matches`() {
+        val ownerId = createTestUser()
+        val otherOwnerId = createTestUser()
+        val courseId = createTestCourse(ownerId)
+        val created = repository.create(courseId, "test.pdf", "materials/$courseId/${UUID.randomUUID()}-test.pdf", "application/pdf", 1024L)
+
+        assertThat(repository.deleteFromOwnedCourse(created.id, courseId, otherOwnerId)).isFalse()
+        assertThat(repository.findById(created.id)).isEqualTo(created)
+
+        assertThat(repository.deleteFromOwnedCourse(created.id, courseId, ownerId)).isTrue()
+        assertThat(repository.findById(created.id)).isNull()
     }
 }

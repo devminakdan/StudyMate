@@ -1,12 +1,9 @@
 package cz.cvut.fit.studymate.course.internal.service
 
-import cz.cvut.fit.studymate.course.api.Course
-import cz.cvut.fit.studymate.course.api.CourseLookup
 import cz.cvut.fit.studymate.course.api.Material
 import cz.cvut.fit.studymate.course.api.MaterialStatus
 import cz.cvut.fit.studymate.course.api.MaterialStatusUpdater
 import cz.cvut.fit.studymate.course.api.MaterialUploadedEvent
-import cz.cvut.fit.studymate.course.internal.exception.CourseAccessDeniedException
 import cz.cvut.fit.studymate.course.internal.exception.CourseNotFoundException
 import cz.cvut.fit.studymate.course.internal.exception.InvalidMaterialException
 import cz.cvut.fit.studymate.course.internal.exception.MaterialNotFoundException
@@ -23,7 +20,6 @@ import java.util.UUID
 @Service
 internal class MaterialService(
     private val materialRepository: MaterialRepository,
-    private val courseLookup: CourseLookup,
     private val storageService: StorageService,
     private val kafkaTemplate: KafkaTemplate<String, MaterialUploadedEvent>,
     private val quotaService: QuotaService
@@ -38,18 +34,6 @@ internal class MaterialService(
     }
     private val tika = Tika()
 
-    private fun requireOwnership(courseId: UUID, userId : UUID) : Course {
-        val course = courseLookup.findCourseById(courseId) ?: throw CourseNotFoundException(courseId)
-        if(course.ownerId != userId) throw CourseAccessDeniedException("You don't own course $courseId")
-        return course
-    }
-
-    private fun requireMaterialInCourse(courseId: UUID, materialId: UUID): Material {
-        val material = materialRepository.findById(materialId) ?: throw MaterialNotFoundException(materialId)
-        if (material.courseId != courseId) throw MaterialNotFoundException(materialId)
-        return material
-    }
-
     private fun buildStoragePath(userId: UUID, courseId: UUID, originalFilename: String): String {
         val sanitized = sanitizeFilename(originalFilename)
         return "user_${userId}/course_${courseId}/${UUID.randomUUID()}_${sanitized}"
@@ -60,7 +44,7 @@ internal class MaterialService(
     }
 
     fun uploadMaterial(courseId: UUID, userId: UUID, file: MultipartFile) : Material {
-        requireOwnership(courseId, userId)
+        if (!materialRepository.existsOwnedCourse(courseId, userId)) throw CourseNotFoundException(courseId)
         if (file.isEmpty) throw InvalidMaterialException("File is empty")
         if (file.size > MAX_FILE_SIZE_BYTES) throw InvalidMaterialException("File exceeds the maximum allowed size of ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB")
         val originalFilename = file.originalFilename ?: throw InvalidMaterialException("File must have a name")
@@ -96,29 +80,26 @@ internal class MaterialService(
     }
 
     fun listMaterials(courseId: UUID, userId: UUID, page: Int, size: Int): List<Material> {
-        requireOwnership(courseId, userId)
-        return materialRepository.findByCourseIdWithPagination(courseId, limit = size, offset = page * size)
+        return materialRepository.findByCourseIdWithPagination(courseId, ownerId = userId, limit = size, offset = page * size)
     }
 
     fun countMaterials(courseId: UUID, userId: UUID): Int {
-        requireOwnership(courseId, userId)
-        return materialRepository.countByCourseId(courseId)
+        return materialRepository.countByCourseId(courseId, ownerId = userId)
     }
 
     fun getMaterial(courseId: UUID, materialId: UUID, userId: UUID): Material {
-        requireOwnership(courseId, userId)
-        return requireMaterialInCourse(courseId, materialId)
+        return materialRepository.findByIdInOwnedCourse(materialId, courseId, userId)
+            ?: throw MaterialNotFoundException(materialId)
     }
 
     fun deleteMaterial(courseId: UUID, materialId: UUID, userId: UUID) {
-        requireOwnership(courseId, userId)
-        val material = requireMaterialInCourse(courseId, materialId)
+        val material = materialRepository.findByIdInOwnedCourse(materialId, courseId, userId)
+            ?: throw MaterialNotFoundException(materialId)
         storageService.delete(StorageRef(material.storagePath))
-        materialRepository.delete(materialId)
+        materialRepository.deleteFromOwnedCourse(materialId, courseId, userId)
     }
 
     override fun updateStatus(materialId: UUID, status: MaterialStatus, pageCount: Int?, error: String?) {
         materialRepository.updateStatus(materialId, status, pageCount, error)
     }
 }
-
