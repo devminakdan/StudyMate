@@ -120,7 +120,7 @@ internal class MaterialServiceTest {
         val result = service.uploadMaterial(existing.id, existing.ownerId, pdfFile())
 
         assertThat(result).isEqualTo(created)
-        verify(exactly = 1) { kafkaTemplate.send("studymate.material.uploaded", created.id.toString(), any()) }
+        verify(exactly = 1) { kafkaTemplate.send(kafkaTopics.materialUploaded, created.id.toString(), any()) }
     }
 
     @Test
