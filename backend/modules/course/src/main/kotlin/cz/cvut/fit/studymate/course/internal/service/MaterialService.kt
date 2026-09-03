@@ -1,5 +1,6 @@
 package cz.cvut.fit.studymate.course.internal.service
 
+import cz.cvut.fit.studymate.course.api.KafkaTopicsProperties
 import cz.cvut.fit.studymate.course.api.Material
 import cz.cvut.fit.studymate.course.api.MaterialStatus
 import cz.cvut.fit.studymate.course.api.MaterialStatusUpdater
