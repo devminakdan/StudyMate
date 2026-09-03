@@ -1,12 +1,9 @@
 package cz.cvut.fit.studymate.course.internal.service
 
 import cz.cvut.fit.studymate.course.api.Course
-import cz.cvut.fit.studymate.course.api.CourseLookup
-import cz.cvut.fit.studymate.course.api.KafkaTopicsProperties
 import cz.cvut.fit.studymate.course.api.Material
 import cz.cvut.fit.studymate.course.api.MaterialStatus
 import cz.cvut.fit.studymate.course.api.MaterialUploadedEvent
-import cz.cvut.fit.studymate.course.internal.exception.CourseAccessDeniedException
 import cz.cvut.fit.studymate.course.internal.exception.CourseNotFoundException
 import cz.cvut.fit.studymate.course.internal.exception.InvalidMaterialException
 import cz.cvut.fit.studymate.course.internal.exception.MaterialNotFoundException
@@ -31,12 +28,10 @@ import java.util.UUID
 internal class MaterialServiceTest {
 
     private val materialRepository = mockk<MaterialRepository>()
-    private val courseLookup = mockk<CourseLookup>()
     private val storageService = mockk<StorageService>()
     private val kafkaTemplate = mockk<KafkaTemplate<String, MaterialUploadedEvent>>()
     private val quotaService = mockk<QuotaService>()
-    private val kafkaTopics = KafkaTopicsProperties().apply { materialUploaded = "test-material-uploaded" }
-    private val service = MaterialService(materialRepository, courseLookup, storageService, kafkaTemplate, quotaService, kafkaTopics)
+    private val service = MaterialService(materialRepository, storageService, kafkaTemplate, quotaService)
 
     private fun course(
         id: UUID = UUID.randomUUID(),
@@ -60,7 +55,7 @@ internal class MaterialServiceTest {
     @Test
     fun `uploadMaterial throws CourseNotFoundException when the course does not exist`() {
         val courseId = UUID.randomUUID()
-        every { courseLookup.findCourseById(courseId) } returns null
+        every { materialRepository.existsOwnedCourse(courseId, any()) } returns false
 
         assertThrows<CourseNotFoundException> {
             service.uploadMaterial(courseId, UUID.randomUUID(), pdfFile())
@@ -68,11 +63,11 @@ internal class MaterialServiceTest {
     }
 
     @Test
-    fun `uploadMaterial throws CourseAccessDeniedException when the caller isn't the owner`() {
+    fun `uploadMaterial throws CourseNotFoundException when the caller isn't the owner`() {
         val existing = course()
-        every { courseLookup.findCourseById(existing.id) } returns existing
+        every { materialRepository.existsOwnedCourse(existing.id, any()) } returns false
 
-        assertThrows<CourseAccessDeniedException> {
+        assertThrows<CourseNotFoundException> {
             service.uploadMaterial(existing.id, UUID.randomUUID(), pdfFile())
         }
     }
@@ -80,7 +75,7 @@ internal class MaterialServiceTest {
     @Test
     fun `uploadMaterial throws InvalidMaterialException for an empty file`() {
         val existing = course()
-        every { courseLookup.findCourseById(existing.id) } returns existing
+        every { materialRepository.existsOwnedCourse(existing.id, existing.ownerId) } returns true
         val emptyFile = MockMultipartFile("file", "empty.pdf", "application/pdf", ByteArray(0))
 
         assertThrows<InvalidMaterialException> {
@@ -91,7 +86,7 @@ internal class MaterialServiceTest {
     @Test
     fun `uploadMaterial throws InvalidMaterialException for a file over the size limit`() {
         val existing = course()
-        every { courseLookup.findCourseById(existing.id) } returns existing
+        every { materialRepository.existsOwnedCourse(existing.id, existing.ownerId) } returns true
         val bigFile = MockMultipartFile("file", "big.pdf", "application/pdf", ByteArray(21 * 1024 * 1024))
 
         assertThrows<InvalidMaterialException> {
@@ -102,7 +97,7 @@ internal class MaterialServiceTest {
     @Test
     fun `uploadMaterial throws InvalidMaterialException for an unsupported file type`() {
         val existing = course()
-        every { courseLookup.findCourseById(existing.id) } returns existing
+        every { materialRepository.existsOwnedCourse(existing.id, existing.ownerId) } returns true
         val textFile = MockMultipartFile("file", "notes.txt", "text/plain", "just plain text".toByteArray())
 
         assertThrows<InvalidMaterialException> {
@@ -114,7 +109,7 @@ internal class MaterialServiceTest {
     fun `uploadMaterial stores the file, persists the record, and publishes a Kafka event`() {
         val existing = course()
         val created = material(courseId = existing.id)
-        every { courseLookup.findCourseById(existing.id) } returns existing
+        every { materialRepository.existsOwnedCourse(existing.id, existing.ownerId) } returns true
         every { quotaService.checkQuota(any(), any()) } just Runs
         every { storageService.store(any(), any()) } returns StorageRef(created.storagePath)
         every {
@@ -133,7 +128,7 @@ internal class MaterialServiceTest {
         val existing = course()
         val created = material(courseId = existing.id)
         val pathSlot = slot<String>()
-        every { courseLookup.findCourseById(existing.id) } returns existing
+        every { materialRepository.existsOwnedCourse(existing.id, existing.ownerId) } returns true
         every { quotaService.checkQuota(any(), any()) } just Runs
         every { storageService.store(capture(pathSlot), any()) } returns StorageRef(created.storagePath)
         every { materialRepository.create(existing.id, "lecture.pdf", created.storagePath, "application/pdf", any()) } returns created
@@ -150,7 +145,7 @@ internal class MaterialServiceTest {
         val existing = course()
         val created = material(courseId = existing.id)
         val pathSlot = slot<String>()
-        every { courseLookup.findCourseById(existing.id) } returns existing
+        every { materialRepository.existsOwnedCourse(existing.id, existing.ownerId) } returns true
         every { quotaService.checkQuota(any(), any()) } just Runs
         every { storageService.store(capture(pathSlot), any()) } returns StorageRef(created.storagePath)
         every { materialRepository.create(existing.id, "Lecture #1 (final).pdf", created.storagePath, "application/pdf", any()) } returns created
@@ -164,7 +159,7 @@ internal class MaterialServiceTest {
     @Test
     fun `uploadMaterial throws QuotaExceededException without storing the file when the quota would be exceeded`() {
         val existing = course()
-        every { courseLookup.findCourseById(existing.id) } returns existing
+        every { materialRepository.existsOwnedCourse(existing.id, existing.ownerId) } returns true
         every { quotaService.checkQuota(existing.ownerId, any()) } throws
             QuotaExceededException(99_614_720L, 104_857_600L, 10_485_760L)
 
@@ -181,8 +176,7 @@ internal class MaterialServiceTest {
     fun `listMaterials translates page and size into limit and offset when calling the repository`() {
         val existing = course()
         val materials = listOf(material(courseId = existing.id))
-        every { courseLookup.findCourseById(existing.id) } returns existing
-        every { materialRepository.findByCourseIdWithPagination(existing.id, limit = 10, offset = 20) } returns materials
+        every { materialRepository.findByCourseIdWithPagination(existing.id, ownerId = existing.ownerId, limit = 10, offset = 20) } returns materials
 
         val result = service.listMaterials(existing.id, existing.ownerId, page = 2, size = 10)
 
@@ -190,20 +184,18 @@ internal class MaterialServiceTest {
     }
 
     @Test
-    fun `listMaterials throws CourseAccessDeniedException when the caller isn't the owner`() {
+    fun `listMaterials returns no materials when the caller isn't the owner`() {
         val existing = course()
-        every { courseLookup.findCourseById(existing.id) } returns existing
+        val callerId = UUID.randomUUID()
+        every { materialRepository.findByCourseIdWithPagination(existing.id, ownerId = callerId, limit = 10, offset = 0) } returns emptyList()
 
-        assertThrows<CourseAccessDeniedException> {
-            service.listMaterials(existing.id, UUID.randomUUID(), page = 0, size = 10)
-        }
+        assertThat(service.listMaterials(existing.id, callerId, page = 0, size = 10)).isEmpty()
     }
 
     @Test
     fun `countMaterials delegates to the repository`() {
         val existing = course()
-        every { courseLookup.findCourseById(existing.id) } returns existing
-        every { materialRepository.countByCourseId(existing.id) } returns 3
+        every { materialRepository.countByCourseId(existing.id, ownerId = existing.ownerId) } returns 3
 
         val result = service.countMaterials(existing.id, existing.ownerId)
 
@@ -216,8 +208,7 @@ internal class MaterialServiceTest {
     fun `getMaterial returns the material when it belongs to the course`() {
         val existing = course()
         val material = material(courseId = existing.id)
-        every { courseLookup.findCourseById(existing.id) } returns existing
-        every { materialRepository.findById(material.id) } returns material
+        every { materialRepository.findByIdInOwnedCourse(material.id, existing.id, existing.ownerId) } returns material
 
         val result = service.getMaterial(existing.id, material.id, existing.ownerId)
 
@@ -228,8 +219,7 @@ internal class MaterialServiceTest {
     fun `getMaterial throws MaterialNotFoundException when no material exists with that id`() {
         val existing = course()
         val materialId = UUID.randomUUID()
-        every { courseLookup.findCourseById(existing.id) } returns existing
-        every { materialRepository.findById(materialId) } returns null
+        every { materialRepository.findByIdInOwnedCourse(materialId, existing.id, existing.ownerId) } returns null
 
         assertThrows<MaterialNotFoundException> {
             service.getMaterial(existing.id, materialId, existing.ownerId)
@@ -240,8 +230,7 @@ internal class MaterialServiceTest {
     fun `getMaterial throws MaterialNotFoundException when the material belongs to a different course`() {
         val existing = course()
         val otherCoursesMaterial = material(courseId = UUID.randomUUID())
-        every { courseLookup.findCourseById(existing.id) } returns existing
-        every { materialRepository.findById(otherCoursesMaterial.id) } returns otherCoursesMaterial
+        every { materialRepository.findByIdInOwnedCourse(otherCoursesMaterial.id, existing.id, existing.ownerId) } returns null
 
         assertThrows<MaterialNotFoundException> {
             service.getMaterial(existing.id, otherCoursesMaterial.id, existing.ownerId)
@@ -254,29 +243,28 @@ internal class MaterialServiceTest {
     fun `deleteMaterial deletes the stored file and the record`() {
         val existing = course()
         val material = material(courseId = existing.id)
-        every { courseLookup.findCourseById(existing.id) } returns existing
-        every { materialRepository.findById(material.id) } returns material
+        every { materialRepository.findByIdInOwnedCourse(material.id, existing.id, existing.ownerId) } returns material
         every { storageService.delete(StorageRef(material.storagePath)) } just Runs
-        every { materialRepository.delete(material.id) } just Runs
+        every { materialRepository.deleteFromOwnedCourse(material.id, existing.id, existing.ownerId) } returns true
 
         service.deleteMaterial(existing.id, material.id, existing.ownerId)
 
         verify(exactly = 1) { storageService.delete(StorageRef(material.storagePath)) }
-        verify(exactly = 1) { materialRepository.delete(material.id) }
+        verify(exactly = 1) { materialRepository.deleteFromOwnedCourse(material.id, existing.id, existing.ownerId) }
     }
 
     @Test
     fun `deleteMaterial throws MaterialNotFoundException without deleting when the material belongs to a different course`() {
         val existing = course()
         val otherCoursesMaterial = material(courseId = UUID.randomUUID())
-        every { courseLookup.findCourseById(existing.id) } returns existing
-        every { materialRepository.findById(otherCoursesMaterial.id) } returns otherCoursesMaterial
+        every { materialRepository.findByIdInOwnedCourse(otherCoursesMaterial.id, existing.id, existing.ownerId) } returns null
 
         assertThrows<MaterialNotFoundException> {
             service.deleteMaterial(existing.id, otherCoursesMaterial.id, existing.ownerId)
         }
 
         verify(exactly = 0) { materialRepository.delete(any()) }
+        verify(exactly = 0) { materialRepository.deleteFromOwnedCourse(any(), any(), any()) }
         verify(exactly = 0) { storageService.delete(any()) }
     }
 
