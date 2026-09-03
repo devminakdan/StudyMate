@@ -1,15 +1,17 @@
 import { Alert, Stack } from '@mui/material';
 import { useForm } from 'react-hook-form';
-import { Button } from '../../../components/ui/Button';
-import { TextInput } from '../../../components/ui/TextInput';
-import { toApiError } from '../../../shared/api/apiClient';
+import { Button } from '@/components/ui/Button';
+import { TextInput } from '@/components/ui/TextInput';
+import { toApiError } from '@/shared/api/apiClient';
 import { useSignupMutation } from '../api/authQueries';
 import { signupSchema } from '../schemas/signupSchema';
 import type { RegisterCredentials } from '../types/auth';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useNavigate } from 'react-router-dom';
 
 export function SignupForm() {
   const signupMutation = useSignupMutation();
+  const navigate = useNavigate();
   const {
     formState: { errors },
     handleSubmit,
@@ -31,7 +33,10 @@ export function SignupForm() {
       component="form"
       noValidate
       spacing={2.25}
-      onSubmit={handleSubmit((credentials) => signupMutation.mutate(credentials))}
+      onSubmit={handleSubmit(async (credentials) => {
+        await signupMutation.mutateAsync(credentials);
+        navigate('/courses');
+      })}
     >
       {rootError && <Alert severity="error">{rootError}</Alert>}
       {signupMutation.isSuccess && (

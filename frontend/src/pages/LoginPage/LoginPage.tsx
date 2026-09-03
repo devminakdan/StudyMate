@@ -1,7 +1,7 @@
 import { Link, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { AuthLayout } from '../../components/layout/AuthLayout';
-import { LoginForm } from '../../features/auth/components/LoginForm';
+import { AuthLayout } from '@/components/layout/AuthLayout';
+import { LoginForm } from '@/features/auth/components/LoginForm';
 
 export function LoginPage() {
   return (

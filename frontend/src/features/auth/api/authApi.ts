@@ -1,4 +1,4 @@
-import { apiClient } from '../../../shared/api/apiClient';
+import { apiClient } from '@/shared/api/apiClient';
 import type { AuthUser, LoginCredentials, RegisterCredentials } from '../types/auth';
 
 export async function login(credentials: LoginCredentials): Promise<AuthUser> {

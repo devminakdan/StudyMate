@@ -1,15 +1,19 @@
 import { Alert, Divider, Link, Stack } from '@mui/material';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { Button } from '../../../components/ui/Button';
-import { TextInput } from '../../../components/ui/TextInput';
-import { toApiError } from '../../../shared/api/apiClient';
+import { useLocation, useNavigate, type Location } from 'react-router-dom';
+import { Button } from '@/components/ui/Button';
+import { TextInput } from '@/components/ui/TextInput';
+import { toApiError } from '@/shared/api/apiClient';
 import { useLoginMutation } from '../api/authQueries';
 import { loginSchema } from '../schemas/loginSchema';
 import type { LoginCredentials } from '../types/auth';
 
 export function LoginForm() {
   const loginMutation = useLoginMutation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: Location } | null)?.from;
   const {
     formState: { errors },
     handleSubmit,
@@ -25,6 +29,7 @@ export function LoginForm() {
   const onSubmit = async (credentials: LoginCredentials) => {
     try {
       await loginMutation.mutateAsync(credentials);
+      navigate(from ?? '/courses');
     } catch (error) {
       const apiError = toApiError(error);
       setError('root', {

@@ -2,7 +2,6 @@ import axios from 'axios';
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
-  headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
 });
 
@@ -23,6 +22,11 @@ export function toApiError(error: unknown): ApiError {
 
   if (error.response.status >= 500) {
     return { kind: 'http', status: error.response.status, message: 'StudyMate is temporarily unavailable. Please try again.' };
+  }
+
+  const serverMessage = error.response.data?.message;
+  if (typeof serverMessage === 'string' && serverMessage.trim()) {
+    return { kind: 'http', status: error.response.status, message: serverMessage };
   }
 
   return { kind: 'http', status: error.response.status, message: 'We could not complete that request. Please check your details and try again.' };

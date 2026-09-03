@@ -1,14 +1,14 @@
 package cz.cvut.fit.studymate.ingestion.internal.kafka.consumer
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import cz.cvut.fit.studymate.course.api.KafkaTopicsProperties
 import cz.cvut.fit.studymate.course.api.MaterialStatus
 import cz.cvut.fit.studymate.course.api.MaterialStatusUpdater
-import cz.cvut.fit.studymate.ingestion.internal.indexing.ChunkIndexer
 import cz.cvut.fit.studymate.ingestion.internal.kafka.event.ChunksEmbeddedEvent
 import cz.cvut.fit.studymate.ingestion.internal.notification.StatusEvent
 import cz.cvut.fit.studymate.ingestion.internal.notification.StatusEventRelay
 import cz.cvut.fit.studymate.ingestion.internal.persistence.ProcessedEventsRepository
+import cz.cvut.fit.studymate.retrieval.api.ChunkIndexer
+import cz.cvut.fit.studymate.retrieval.api.IndexedChunk
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
@@ -22,7 +22,6 @@ internal class IndexingConsumer(
     private val materialStatusUpdater: MaterialStatusUpdater,
     private val statusEventRelay: StatusEventRelay,
     private val chunkIndexer: ChunkIndexer,
-    private val kafkaTopics: KafkaTopicsProperties,
 ) {
     @KafkaListener(topics = ["\${studymate.kafka.topics.chunks-embedded}"], groupId = "ingestion-indexing")
     fun onMessage(payload: String, acknowledgment: Acknowledgment) {
@@ -35,7 +34,18 @@ internal class IndexingConsumer(
 
         try {
             updateStatus(event, MaterialStatus.INDEXING)
-            chunkIndexer.indexChunks(event.materialId, event.courseId, event.ownerId, event.chunks)
+            chunkIndexer.indexChunks(
+                materialId = event.materialId,
+                courseId = event.courseId,
+                ownerId = event.ownerId,
+                chunks = event.chunks.map { chunk ->
+                    IndexedChunk(
+                        chunkIndex = chunk.chunkIndex,
+                        text = chunk.text,
+                        embedding = chunk.embedding,
+                    )
+                },
+            )
             updateStatus(event, MaterialStatus.READY)
             processedEventsRepository.markProcessed(event.eventId)
         } catch (exception: Exception) {

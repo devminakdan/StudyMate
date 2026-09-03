@@ -1,7 +1,7 @@
 import { Link, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { AuthLayout } from '../../components/layout/AuthLayout';
-import { SignupForm } from '../../features/auth/components/SignupForm';
+import { AuthLayout } from '@/components/layout/AuthLayout';
+import { SignupForm } from '@/features/auth/components/SignupForm';
 
 export function SignupPage() {
   return (

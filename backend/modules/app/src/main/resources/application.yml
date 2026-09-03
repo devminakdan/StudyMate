@@ -48,14 +48,14 @@ studymate:
       base-path: storage
   ai:
     llm:
-      provider: groq   # groq | ollama | anthropic
+      provider: ollama   # groq | ollama | anthropic
     groq:
       base-url: https://api.groq.com/openai/v1
       api-key: ${GROQ_API_KEY:}
       default-model: llama-3.3-70b-versatile
     ollama:
       base-url: http://localhost:11434/v1
-      default-model: llama3.1:8b
+      default-model: qwen2.5:14b
     embedding:
       base-url: http://localhost:11434
       model: bge-m3

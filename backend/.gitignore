@@ -30,3 +30,4 @@ application-local.yml
 # Storage (local file storage for dev) — anchored to repo root so it
 # doesn't also match the modules/storage Gradle module
 /storage/
+/modules/app/storage/
