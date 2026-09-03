@@ -29,7 +29,7 @@ internal class LlmClientsConfig {
 
     @Bean
     fun anthropicLlmClient(
-        @Value("\${studymate.anthropic.api-key}") apiKey: String,
-        @Value("\${studymate.anthropic.default-model}") defaultModel: String,
+        @Value("\${studymate.ai.anthropic.api-key}") apiKey: String,
+        @Value("\${studymate.ai.anthropic.default-model}") defaultModel: String,
     ): AnthropicLlmClient = AnthropicLlmClient(apiKey, defaultModel)
 }

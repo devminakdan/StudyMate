@@ -50,9 +50,14 @@ studymate:
     ollama:
       base-url: http://localhost:11434/v1
       default-model: llama3.1:8b
-  anthropic:
-    api-key: ${ANTHROPIC_API_KEY:}
-    default-model: claude-sonnet-5
+    embedding:
+      base-url: http://localhost:11434
+      model: bge-m3
+      dimensions: 1024
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      default-model: claude-sonnet-5
+
 
 server:
   port: 8080
