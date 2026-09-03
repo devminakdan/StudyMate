@@ -2,6 +2,7 @@ package cz.cvut.fit.studymate.course.internal.service
 
 import cz.cvut.fit.studymate.course.api.Course
 import cz.cvut.fit.studymate.course.api.CourseLookup
+import cz.cvut.fit.studymate.course.api.KafkaTopicsProperties
 import cz.cvut.fit.studymate.course.api.Material
 import cz.cvut.fit.studymate.course.api.MaterialStatus
 import cz.cvut.fit.studymate.course.api.MaterialStatusUpdater
@@ -26,7 +27,8 @@ internal class MaterialService(
     private val courseLookup: CourseLookup,
     private val storageService: StorageService,
     private val kafkaTemplate: KafkaTemplate<String, MaterialUploadedEvent>,
-    private val quotaService: QuotaService
+    private val quotaService: QuotaService,
+    private val kafkaTopics: KafkaTopicsProperties,
 ) : MaterialStatusUpdater {
     companion object {
         private const val MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024L // 20MB
@@ -34,7 +36,6 @@ internal class MaterialService(
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.presentationml.presentation"
         )
-        private const val MATERIAL_UPLOADED_TOPIC = "studymate.material.uploaded"
     }
     private val tika = Tika()
 
@@ -90,7 +91,7 @@ internal class MaterialService(
             storagePath = created.storagePath,
             mimeType = detectedType,
         )
-        kafkaTemplate.send(MATERIAL_UPLOADED_TOPIC, created.id.toString(), event)
+        kafkaTemplate.send(kafkaTopics.materialUploaded, created.id.toString(), event)
 
         return created
     }
@@ -121,4 +122,3 @@ internal class MaterialService(
         materialRepository.updateStatus(materialId, status, pageCount, error)
     }
 }
-

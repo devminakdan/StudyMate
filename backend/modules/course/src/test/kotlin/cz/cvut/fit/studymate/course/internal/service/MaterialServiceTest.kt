@@ -2,6 +2,7 @@ package cz.cvut.fit.studymate.course.internal.service
 
 import cz.cvut.fit.studymate.course.api.Course
 import cz.cvut.fit.studymate.course.api.CourseLookup
+import cz.cvut.fit.studymate.course.api.KafkaTopicsProperties
 import cz.cvut.fit.studymate.course.api.Material
 import cz.cvut.fit.studymate.course.api.MaterialStatus
 import cz.cvut.fit.studymate.course.api.MaterialUploadedEvent
@@ -34,7 +35,8 @@ internal class MaterialServiceTest {
     private val storageService = mockk<StorageService>()
     private val kafkaTemplate = mockk<KafkaTemplate<String, MaterialUploadedEvent>>()
     private val quotaService = mockk<QuotaService>()
-    private val service = MaterialService(materialRepository, courseLookup, storageService, kafkaTemplate, quotaService)
+    private val kafkaTopics = KafkaTopicsProperties().apply { materialUploaded = "test-material-uploaded" }
+    private val service = MaterialService(materialRepository, courseLookup, storageService, kafkaTemplate, quotaService, kafkaTopics)
 
     private fun course(
         id: UUID = UUID.randomUUID(),
@@ -123,7 +125,7 @@ internal class MaterialServiceTest {
         val result = service.uploadMaterial(existing.id, existing.ownerId, pdfFile())
 
         assertThat(result).isEqualTo(created)
-        verify(exactly = 1) { kafkaTemplate.send("studymate.material.uploaded", created.id.toString(), any()) }
+        verify(exactly = 1) { kafkaTemplate.send(kafkaTopics.materialUploaded, created.id.toString(), any()) }
     }
 
     @Test
