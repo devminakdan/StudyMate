@@ -1,6 +1,7 @@
 package cz.cvut.fit.studymate.course.internal.service
 
 import cz.cvut.fit.studymate.course.api.Course
+import cz.cvut.fit.studymate.course.api.KafkaTopicsProperties
 import cz.cvut.fit.studymate.course.api.Material
 import cz.cvut.fit.studymate.course.api.MaterialStatus
 import cz.cvut.fit.studymate.course.api.MaterialUploadedEvent
@@ -31,7 +32,8 @@ internal class MaterialServiceTest {
     private val storageService = mockk<StorageService>()
     private val kafkaTemplate = mockk<KafkaTemplate<String, MaterialUploadedEvent>>()
     private val quotaService = mockk<QuotaService>()
-    private val service = MaterialService(materialRepository, storageService, kafkaTemplate, quotaService)
+    private val kafkaTopics = KafkaTopicsProperties().apply { materialUploaded = "test-material-uploaded" }
+    private val service = MaterialService(materialRepository, storageService, kafkaTemplate, quotaService, kafkaTopics)
 
     private fun course(
         id: UUID = UUID.randomUUID(),
