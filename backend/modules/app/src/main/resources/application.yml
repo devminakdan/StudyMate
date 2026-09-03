@@ -28,6 +28,12 @@ spring:
       ack-mode: manual
 
 studymate:
+  kafka:
+    topics:
+      material-uploaded: studymate.material.uploaded
+      text-extracted: studymate.material.text-extracted
+      text-chunked: studymate.material.text-chunked
+      chunks-embedded: studymate.material.chunks-embedded
   security:
     jwt:
       secret: ${JWT_SECRET:my-super-secret-key-that-is-at-least-32-bytes-long}

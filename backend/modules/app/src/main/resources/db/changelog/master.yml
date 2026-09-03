@@ -3,3 +3,5 @@ databaseChangeLog:
       file: classpath:db/changelog/iam-changelog.yml
   - include:
       file: classpath:db/changelog/course-changelog.yml
+  - include:
+      file: classpath:db/changelog/ingestion-changelog.yml
