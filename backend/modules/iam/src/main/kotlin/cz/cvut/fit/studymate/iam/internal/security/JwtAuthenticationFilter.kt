@@ -2,7 +2,6 @@ package cz.cvut.fit.studymate.iam.internal.security
 
 import cz.cvut.fit.studymate.iam.api.AuthenticatedUser
 import cz.cvut.fit.studymate.iam.internal.service.JwtService
-import cz.cvut.fit.studymate.iam.internal.service.TokenType
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -17,6 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter
 internal class JwtAuthenticationFilter(
     private val jwtService: JwtService,
     private val jwtCookies: JwtCookies,
+    private val accessTokenBlacklist: AccessTokenBlacklist,
 ) : OncePerRequestFilter() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -31,9 +31,8 @@ internal class JwtAuthenticationFilter(
         if (token != null) {
             try {
                 val claims = jwtService.parseAndValidate(token)
-
-                if (claims.type != TokenType.ACCESS) {
-                    log.debug("Wrong token type in access cookie: {}", claims.type)
+                if (accessTokenBlacklist.isBlacklisted(claims)) {
+                    log.debug("Access JWT belongs to a revoked session: {}", claims.sessionId)
                 } else {
                     val authUser = AuthenticatedUser(claims.userId, claims.email, claims.role)
                     val authorities = setOf(claims.role).map { SimpleGrantedAuthority(it.asAuthority()) }

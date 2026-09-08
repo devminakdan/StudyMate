@@ -5,7 +5,6 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
-import java.time.Instant
 
 @Component
 internal class JwtCookies(
@@ -14,7 +13,6 @@ internal class JwtCookies(
     @Value("\${studymate.security.jwt.cookie-secure}") private val secure: Boolean,
 ) {
     fun setTokens(response: HttpServletResponse, accessToken: String, refreshToken: String) {
-        val now = Instant.now()
         response.addCookie(buildCookie(ACCESS_COOKIE, accessToken, accessTtl))
         response.addCookie(buildCookie(REFRESH_COOKIE, refreshToken, refreshTtl))
     }
