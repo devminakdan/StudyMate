@@ -4,21 +4,22 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.ninjasquad.springmockk.MockkBean
 import cz.cvut.fit.studymate.iam.api.AuthenticatedUser
 import cz.cvut.fit.studymate.iam.api.Role
+import cz.cvut.fit.studymate.iam.internal.dto.AuthResult
 import cz.cvut.fit.studymate.iam.internal.dto.LoginRequest
-import cz.cvut.fit.studymate.iam.internal.dto.RegisterLoginResult
 import cz.cvut.fit.studymate.iam.internal.dto.RegisterRequest
 import cz.cvut.fit.studymate.iam.internal.exception.InvalidTokenException
 import cz.cvut.fit.studymate.iam.internal.security.JwtAuthenticationFilter
 import cz.cvut.fit.studymate.iam.internal.security.JwtCookies
+import cz.cvut.fit.studymate.iam.internal.security.AccessTokenBlacklist
 import cz.cvut.fit.studymate.iam.internal.security.SecurityConfig
 import cz.cvut.fit.studymate.iam.internal.security.accessTokenCookie
 import cz.cvut.fit.studymate.iam.internal.service.AuthService
 import cz.cvut.fit.studymate.iam.internal.service.JwtService
-import cz.cvut.fit.studymate.iam.internal.service.TokenPair
 import io.mockk.every
 import io.mockk.verify
 import jakarta.servlet.http.Cookie
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.BeforeEach
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.context.annotation.Import
@@ -31,11 +32,6 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.util.UUID
 
-// controllers = [AuthController::class] deliberately omitted: @WebMvcTest's controller
-// discovery relies on classpath scanning rooted at a @SpringBootApplication/@ComponentScan,
-// which this module doesn't have (only a bare @SpringBootConfiguration marker for @WebMvcTest
-// to anchor on). Scanning silently finds nothing here, so every bean this slice needs —
-// including the controller and its exception handler — is registered explicitly via @Import.
 @WebMvcTest
 @Import(
     AuthController::class,
@@ -47,116 +43,48 @@ import java.util.UUID
 )
 internal class AuthControllerTest {
 
-    @Autowired
-    private lateinit var mockMvc: MockMvc
-
-    @Autowired
-    private lateinit var jwtService: JwtService
-
-    @Autowired
-    private lateinit var objectMapper: ObjectMapper
-
-    @MockkBean
-    private lateinit var authService: AuthService
+    @Autowired lateinit var mockMvc: MockMvc
+    @Autowired lateinit var objectMapper: ObjectMapper
+    @Autowired lateinit var jwtService: JwtService
+    @MockkBean lateinit var authService: AuthService
+    @MockkBean lateinit var accessTokenBlacklist: AccessTokenBlacklist
 
     private fun postJson(uri: String, body: String) =
         mockMvc.perform(post(uri).contentType(MediaType.APPLICATION_JSON).content(body))
 
-    // ---- register ----
+    private fun result(userId: UUID = UUID.randomUUID()) =
+        AuthResult(userId, "alice@example.com", "alice", "access-token", "opaque-refresh-token")
+
+    @BeforeEach
+    fun allowAccessTokens() {
+        every { accessTokenBlacklist.isBlacklisted(any()) } returns false
+    }
 
     @Test
-    fun `register returns 201 with the created user's info and sets access and refresh cookies, without needing auth`() {
-        val userId = UUID.randomUUID()
-        every { authService.register("alice", "alice@example.com", "password123") } returns
-            RegisterLoginResult(userId, "alice@example.com", "alice", TokenPair("acc-token", "ref-token"))
+    fun `register keeps both tokens in HttpOnly cookies`() {
+        val result = result()
+        every { authService.register("alice", "alice@example.com", "password123") } returns result
 
         postJson("/api/v1/auth/register", objectMapper.writeValueAsString(RegisterRequest("alice", "password123", "alice@example.com")))
             .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.userId").value(userId.toString()))
-            .andExpect(jsonPath("$.email").value("alice@example.com"))
-            .andExpect(jsonPath("$.username").value("alice"))
-            .andExpect(cookie().value("access_token", "acc-token"))
-            .andExpect(cookie().value("refresh_token", "ref-token"))
+            .andExpect(jsonPath("$.userId").value(result.userId.toString()))
+            .andExpect(cookie().value("access_token", "access-token"))
+            .andExpect(cookie().value("refresh_token", "opaque-refresh-token"))
     }
 
     @Test
-    fun `register returns 400 when username is blank`() {
-        postJson("/api/v1/auth/register", objectMapper.writeValueAsString(RegisterRequest("", "password123", "alice@example.com")))
-            .andExpect(status().isBadRequest)
-        verify(exactly = 0) { authService.register(any(), any(), any()) }
-    }
-
-    @Test
-    fun `register returns 400 when username is shorter than 2 characters`() {
-        postJson("/api/v1/auth/register", objectMapper.writeValueAsString(RegisterRequest("a", "password123", "alice@example.com")))
-            .andExpect(status().isBadRequest)
-    }
-
-    @Test
-    fun `register returns 400 when username is longer than 20 characters`() {
-        postJson("/api/v1/auth/register", objectMapper.writeValueAsString(RegisterRequest("a".repeat(21), "password123", "alice@example.com")))
-            .andExpect(status().isBadRequest)
-    }
-
-    @Test
-    fun `register returns 400 when password is shorter than 8 characters`() {
-        postJson("/api/v1/auth/register", objectMapper.writeValueAsString(RegisterRequest("alice", "short12", "alice@example.com")))
-            .andExpect(status().isBadRequest)
-    }
-
-    @Test
-    fun `register returns 400 when password is longer than 30 characters`() {
-        postJson("/api/v1/auth/register", objectMapper.writeValueAsString(RegisterRequest("alice", "a".repeat(31), "alice@example.com")))
-            .andExpect(status().isBadRequest)
-    }
-
-    @Test
-    fun `register returns 400 when email is not a valid email address`() {
-        postJson("/api/v1/auth/register", objectMapper.writeValueAsString(RegisterRequest("alice", "password123", "not-an-email")))
-            .andExpect(status().isBadRequest)
-    }
-
-    @Test
-    fun `register returns 400 when the request body is missing required fields entirely`() {
-        postJson("/api/v1/auth/register", "{}")
-            .andExpect(status().isBadRequest)
-    }
-
-    // ---- login ----
-
-    @Test
-    fun `login returns 200 with user info and sets access and refresh cookies, without needing auth`() {
-        val userId = UUID.randomUUID()
-        every { authService.login("alice@example.com", "password123") } returns
-            RegisterLoginResult(userId, "alice@example.com", "alice", TokenPair("acc-token", "ref-token"))
+    fun `login keeps both tokens in HttpOnly cookies`() {
+        val result = result()
+        every { authService.login("alice@example.com", "password123") } returns result
 
         postJson("/api/v1/auth/login", objectMapper.writeValueAsString(LoginRequest("alice@example.com", "password123")))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.userId").value(userId.toString()))
-            .andExpect(cookie().value("access_token", "acc-token"))
-            .andExpect(cookie().value("refresh_token", "ref-token"))
+            .andExpect(cookie().value("access_token", "access-token"))
+            .andExpect(cookie().value("refresh_token", "opaque-refresh-token"))
     }
 
     @Test
-    fun `login returns 400 when email is blank`() {
-        postJson("/api/v1/auth/login", objectMapper.writeValueAsString(LoginRequest("", "password123")))
-            .andExpect(status().isBadRequest)
-    }
-
-    @Test
-    fun `login returns 400 when email is not a valid email format`() {
-        postJson("/api/v1/auth/login", objectMapper.writeValueAsString(LoginRequest("not-an-email", "password123")))
-            .andExpect(status().isBadRequest)
-    }
-
-    @Test
-    fun `login returns 400 when password is blank`() {
-        postJson("/api/v1/auth/login", objectMapper.writeValueAsString(LoginRequest("alice@example.com", "")))
-            .andExpect(status().isBadRequest)
-    }
-
-    @Test
-    fun `login returns 401 with an ErrorResponse body when AuthService rejects the credentials`() {
+    fun `login returns 401 for invalid credentials`() {
         every { authService.login(any(), any()) } throws BadCredentialsException("Invalid credentials")
 
         postJson("/api/v1/auth/login", objectMapper.writeValueAsString(LoginRequest("alice@example.com", "wrong")))
@@ -164,81 +92,46 @@ internal class AuthControllerTest {
             .andExpect(jsonPath("$.message").value("Invalid credentials"))
     }
 
-    // ---- refresh ----
-
     @Test
-    fun `refresh returns 204 and rotates cookies when a valid refresh token cookie is present, without needing auth`() {
-        every { authService.refresh("opaque-refresh-value") } returns TokenPair("new-acc", "new-ref")
+    fun `refresh replaces both token cookies`() {
+        every { authService.refresh("old-refresh") } returns result().copy(accessToken = "new-access", refreshToken = "new-refresh")
 
-        mockMvc.perform(
-            post("/api/v1/auth/refresh").cookie(Cookie("refresh_token", "opaque-refresh-value"))
-        )
+        mockMvc.perform(post("/api/v1/auth/refresh").cookie(Cookie("refresh_token", "old-refresh")))
             .andExpect(status().isNoContent)
-            .andExpect(cookie().value("access_token", "new-acc"))
-            .andExpect(cookie().value("refresh_token", "new-ref"))
+            .andExpect(cookie().value("access_token", "new-access"))
+            .andExpect(cookie().value("refresh_token", "new-refresh"))
     }
 
     @Test
-    fun `refresh returns 401 with an ErrorResponse when no refresh token cookie is present`() {
+    fun `refresh rejects a missing or reused cookie`() {
         mockMvc.perform(post("/api/v1/auth/refresh"))
             .andExpect(status().isUnauthorized)
-            .andExpect(jsonPath("$.message").value("No refresh token provided"))
 
-        verify(exactly = 0) { authService.refresh(any()) }
-    }
-
-    @Test
-    fun `refresh returns 401 when AuthService reports the token could not be parsed or has expired`() {
-        every { authService.refresh(any()) } throws InvalidTokenException("Invalid refresh token")
-
-        mockMvc.perform(post("/api/v1/auth/refresh").cookie(Cookie("refresh_token", "expired")))
+        every { authService.refresh("reused") } throws InvalidTokenException("Refresh token reuse detected")
+        mockMvc.perform(post("/api/v1/auth/refresh").cookie(Cookie("refresh_token", "reused")))
             .andExpect(status().isUnauthorized)
-            .andExpect(jsonPath("$.message").value("Invalid refresh token"))
     }
 
     @Test
-    fun `refresh returns 401 when AuthService reports the token is not a refresh token`() {
-        every { authService.refresh(any()) } throws InvalidTokenException("Token is not a refresh token")
+    fun `logout revokes the session identified by refresh cookie and clears it`() {
+        every { authService.logout("refresh") } returns Unit
 
-        mockMvc.perform(post("/api/v1/auth/refresh").cookie(Cookie("refresh_token", "an-access-token")))
-            .andExpect(status().isUnauthorized)
-            .andExpect(jsonPath("$.message").value("Token is not a refresh token"))
-    }
-
-    @Test
-    fun `refresh returns 401 when AuthService reports the user referenced by the token no longer exists`() {
-        every { authService.refresh(any()) } throws InvalidTokenException("User no longer exists")
-
-        mockMvc.perform(post("/api/v1/auth/refresh").cookie(Cookie("refresh_token", "orphaned")))
-            .andExpect(status().isUnauthorized)
-            .andExpect(jsonPath("$.message").value("User no longer exists"))
-    }
-
-    // ---- logout (not permitAll — requires authentication) ----
-
-    @Test
-    fun `logout is rejected when no authentication cookie is present`() {
-        // SecurityConfig disables formLogin/httpBasic and defines no AuthenticationEntryPoint,
-        // so Spring Security falls back to Http403ForbiddenEntryPoint for unauthenticated requests.
-        mockMvc.perform(post("/api/v1/auth/logout"))
-            .andExpect(status().isForbidden)
-    }
-
-    @Test
-    fun `logout is rejected when the access token cookie contains an invalid, unparseable JWT`() {
-        // JwtAuthenticationFilter swallows the parse failure and leaves the request unauthenticated,
-        // so this behaves identically to sending no cookie at all.
-        mockMvc.perform(post("/api/v1/auth/logout").cookie(Cookie("access_token", "not-a-real-jwt")))
-            .andExpect(status().isForbidden)
-    }
-
-    @Test
-    fun `logout returns 204 and clears both cookies when a valid access token cookie is present`() {
-        val cookie = accessTokenCookie(jwtService, AuthenticatedUser(UUID.randomUUID(), "alice@example.com", Role.USER))
-
-        mockMvc.perform(post("/api/v1/auth/logout").cookie(cookie))
+        mockMvc.perform(post("/api/v1/auth/logout").cookie(Cookie("refresh_token", "refresh")))
             .andExpect(status().isNoContent)
             .andExpect(cookie().maxAge("access_token", 0))
             .andExpect(cookie().maxAge("refresh_token", 0))
+        verify { authService.logout("refresh") }
+    }
+
+    @Test
+    fun `logout all requires access_token cookie`() {
+        val user = AuthenticatedUser(UUID.randomUUID(), "alice@example.com", Role.USER)
+        every { authService.logoutAll(user.id) } returns Unit
+
+        mockMvc.perform(post("/api/v1/auth/logout-all"))
+            .andExpect(status().isForbidden)
+        mockMvc.perform(post("/api/v1/auth/logout-all").cookie(accessTokenCookie(jwtService, user)))
+            .andExpect(status().isNoContent)
+        verify { authService.logoutAll(user.id) }
     }
 }

@@ -1,6 +1,7 @@
 package cz.cvut.fit.studymate.iam.internal.controller
 
 import cz.cvut.fit.studymate.common.ErrorResponse
+import cz.cvut.fit.studymate.iam.api.AuthenticatedUser
 import cz.cvut.fit.studymate.iam.internal.dto.AuthResponse
 import cz.cvut.fit.studymate.iam.internal.dto.LoginRequest
 import cz.cvut.fit.studymate.iam.internal.dto.RegisterRequest
@@ -18,6 +19,7 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -29,11 +31,11 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/v1/auth")
 internal class AuthController(
     private val authService: AuthService,
-    private val jwtCookies: JwtCookies
+    private val jwtCookies: JwtCookies,
 ) {
     @Operation(
         summary = "Register a new user",
-        description = "Creates an account and issues an access/refresh token pair as httpOnly cookies. Public — no authentication required.",
+        description = "Creates an account and sets short-lived access and opaque refresh tokens as httpOnly cookies. Public — no authentication required.",
     )
     @ApiResponses(
         ApiResponse(responseCode = "201", description = "User created", content = [Content(schema = Schema(implementation = AuthResponse::class))]),
@@ -43,18 +45,22 @@ internal class AuthController(
     @ResponseStatus(value = HttpStatus.CREATED)
     fun register(
         @Valid @RequestBody req: RegisterRequest,
-        response: HttpServletResponse
+        response: HttpServletResponse,
     ): AuthResponse {
-        val result = authService.register(req.username, req.email, req.password)
+        val result = authService.register(
+            req.username,
+            req.email,
+            req.password,
+        )
 
-        jwtCookies.setTokens(response, result.tokens.accessToken, result.tokens.refreshToken)
+        jwtCookies.setTokens(response, result.accessToken, result.refreshToken)
 
         return AuthResponse(result.userId, result.email, result.username)
     }
 
     @Operation(
         summary = "Log in",
-        description = "Verifies credentials and issues a new access/refresh token pair as httpOnly cookies. Public — no authentication required.",
+        description = "Verifies credentials, creates a new server session and sets access and opaque refresh tokens as httpOnly cookies. Public — no authentication required.",
     )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "Logged in", content = [Content(schema = Schema(implementation = AuthResponse::class))]),
@@ -64,24 +70,24 @@ internal class AuthController(
     @PostMapping("/login")
     fun login(
         @Valid @RequestBody req: LoginRequest,
-        response: HttpServletResponse
+        response: HttpServletResponse,
     ): AuthResponse {
         val result = authService.login(req.email, req.password)
-        jwtCookies.setTokens(response, result.tokens.accessToken, result.tokens.refreshToken)
+        jwtCookies.setTokens(response, result.accessToken, result.refreshToken)
 
         return AuthResponse(result.userId, result.email, result.username)
     }
 
     @Operation(
         summary = "Refresh the token pair",
-        description = "Rotates the access/refresh token pair using the refresh_token cookie. Public endpoint — the refresh token itself is the credential, not the usual access-token auth.",
+        description = "Atomically consumes the opaque refresh_token cookie and replaces both token cookies for the same server session.",
     )
     @SecurityRequirement(name = "refreshTokenCookie")
     @ApiResponses(
-        ApiResponse(responseCode = "204", description = "Tokens rotated, new cookies set"),
+        ApiResponse(responseCode = "204", description = "Replacement access and refresh cookies set"),
         ApiResponse(
             responseCode = "401",
-            description = "No refresh_token cookie present, the token is malformed/expired, it's an access token used where a refresh token is expected, or the user it references no longer exists",
+            description = "No refresh_token cookie is present, or the token/session is unknown, expired, revoked, or has already been used",
             content = [Content(schema = Schema(implementation = ErrorResponse::class))],
         ),
     )
@@ -94,22 +100,33 @@ internal class AuthController(
         val refreshToken = jwtCookies.extractRefreshToken(request)
             ?: throw InvalidTokenException("No refresh token provided")
 
-        val newTokens = authService.refresh(refreshToken)
-        jwtCookies.setTokens(response, newTokens.accessToken, newTokens.refreshToken)
+        val result = authService.refresh(refreshToken)
+        jwtCookies.setTokens(response, result.accessToken, result.refreshToken)
     }
 
     @Operation(
         summary = "Log out",
-        description = "Clears the access/refresh token cookies. Requires a valid access_token cookie, unlike register/login/refresh.",
+        description = "Revokes only the server session identified by the refresh_token cookie and clears that cookie.",
     )
-    @SecurityRequirement(name = "accessTokenCookie")
+    @SecurityRequirement(name = "refreshTokenCookie")
     @ApiResponses(
         ApiResponse(responseCode = "204", description = "Cookies cleared"),
-        ApiResponse(responseCode = "403", description = "No access_token cookie, or it's missing/invalid/unparseable", content = [Content()]),
+        ApiResponse(responseCode = "401", description = "No valid refresh_token cookie", content = [Content()]),
     )
     @PostMapping("/logout")
     @ResponseStatus(value = HttpStatus.NO_CONTENT)
-    fun logout(response: HttpServletResponse){
+    fun logout(request: HttpServletRequest, response: HttpServletResponse){
+        val refreshToken = jwtCookies.extractRefreshToken(request)
+            ?: throw InvalidTokenException("No refresh token provided")
+        authService.logout(refreshToken)
         jwtCookies.clearTokens(response)
+    }
+
+    @Operation(summary = "Log out from all devices", description = "Revokes every active server session belonging to the authenticated user.")
+    @SecurityRequirement(name = "accessTokenCookie")
+    @PostMapping("/logout-all")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun logoutAll(@AuthenticationPrincipal user: AuthenticatedUser) {
+        authService.logoutAll(user.id)
     }
 }

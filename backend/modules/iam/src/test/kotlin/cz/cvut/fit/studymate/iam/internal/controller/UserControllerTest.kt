@@ -9,6 +9,7 @@ import cz.cvut.fit.studymate.iam.internal.dto.ChangeRoleRequest
 import cz.cvut.fit.studymate.iam.internal.exception.UserNotFoundException
 import cz.cvut.fit.studymate.iam.internal.security.JwtAuthenticationFilter
 import cz.cvut.fit.studymate.iam.internal.security.JwtCookies
+import cz.cvut.fit.studymate.iam.internal.security.AccessTokenBlacklist
 import cz.cvut.fit.studymate.iam.internal.security.SecurityConfig
 import cz.cvut.fit.studymate.iam.internal.security.accessTokenCookie
 import cz.cvut.fit.studymate.iam.internal.service.JwtService
@@ -16,6 +17,7 @@ import cz.cvut.fit.studymate.iam.internal.service.UserService
 import io.mockk.every
 import io.mockk.verify
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.BeforeEach
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.context.annotation.Import
@@ -54,12 +56,20 @@ internal class UserControllerTest {
     @MockkBean
     private lateinit var service: UserService
 
+    @MockkBean
+    private lateinit var accessTokenBlacklist: AccessTokenBlacklist
+
     private fun user(
         id: UUID = UUID.randomUUID(),
         username: String = "alice",
         email: String = "alice@example.com",
         role: Role = Role.USER,
     ) = User(id, username, email, role, OffsetDateTime.now(), OffsetDateTime.now())
+
+    @BeforeEach
+    fun allowAccessTokens() {
+        every { accessTokenBlacklist.isBlacklisted(any()) } returns false
+    }
 
     // ---- GET /me ----
 
