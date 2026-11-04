@@ -142,7 +142,7 @@ package cz.cvut.fit.studymate.ai.internal.mcp
 import cz.cvut.fit.studymate.course.internal.exception.CourseAccessDeniedException
 import cz.cvut.fit.studymate.course.internal.repository.CourseRepository
 import cz.cvut.fit.studymate.iam.api.AuthenticatedUser
-import cz.cvut.fit.studymate.retrieval.api.RetrievalService
+import cz.cvut.fit.studymate.retrieval.api.RetrievalLookup
 import cz.cvut.fit.studymate.retrieval.api.SearchResultChunk
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
@@ -152,7 +152,7 @@ import java.util.UUID
 
 @Component
 class StudyMateMcpTools(
-    private val retrievalService: RetrievalService,
+    private val retrievalService: RetrievalLookup,
     private val courseRepository: CourseRepository,
     private val quizAttemptLookup: QuizAttemptLookupService, // сервис из модуля :quiz
 ) {
