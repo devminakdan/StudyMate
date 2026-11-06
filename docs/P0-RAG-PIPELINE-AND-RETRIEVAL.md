@@ -1,10 +1,10 @@
 # План реализации P0: Ядро RAG и поисковый движок (Retrieval Engine)
 
-> **Приоритет: P0 (Критический).** Без компонентов этого документа система RAG физически не может отвечать на вопросы, так как на текущий момент в бэкенде отсутствует логика извлечения (Retrieval) векторов из базы данных.
+> **Приоритет: P0 (Критический).** Документ содержит исходный аудит и план расширения RAG. На 2026-11-05 базовый векторный поиск по курсу и материалу реализован; актуальный контракт находится в разделе «Реализованный HTTP API поиска». Метаданные, гибридный поиск и остальные расширения ниже остаются планом.
 
 ---
 
-## 1. Анализ текущего RAG-конвейера
+## 1. Исходный аудит RAG-конвейера
 
 Текущий конвейер обработки файлов в модуле [`:ingestion`](file:///Users/test/IdeaProjects/studymate/backend/modules/ingestion) работает по асинхронной схеме через Kafka:
 
@@ -227,7 +227,7 @@ fun handle(event: TextChunkedEvent) {
 
 В модуль `:retrieval` добавляется полноценный поисковый сервис.
 
-### Интерфейс `RetrievalService`
+### Интерфейс `RetrievalLookup`
 
 ```kotlin
 package cz.cvut.fit.studymate.retrieval.api
@@ -244,7 +244,7 @@ data class SearchResultChunk(
     val similarityScore: Double, // 1.0 - cosine_distance
 )
 
-interface RetrievalService {
+interface RetrievalLookup {
     /**
      * Поиск по всем материалам курса
      */
@@ -279,7 +279,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.pgvector.PGvector
 import cz.cvut.fit.studymate.ai.api.EmbeddingClient
-import cz.cvut.fit.studymate.retrieval.api.RetrievalService
+import cz.cvut.fit.studymate.retrieval.api.RetrievalLookup
 import cz.cvut.fit.studymate.retrieval.api.SearchResultChunk
 import org.jooq.DSLContext
 import org.jooq.impl.DSL.*
@@ -291,7 +291,7 @@ internal class PgvectorRetrievalService(
     private val dsl: DSLContext,
     private val embeddingClient: EmbeddingClient,
     private val objectMapper: ObjectMapper,
-) : RetrievalService {
+) : RetrievalLookup {
 
     override suspend fun searchCourse(
         courseId: UUID,
@@ -370,6 +370,73 @@ internal class PgvectorRetrievalService(
     }
 }
 ```
+
+---
+
+### Реализованный HTTP API поиска
+
+**Статус на 2026-11-05:** контроллер находится в модуле `retrieval`, пакет `cz.cvut.fit.studymate.retrieval.internal.controller`. Оба endpoint возвращают исходные фрагменты материалов.
+
+```http
+POST /api/v1/courses/{courseId}/search
+Content-Type: application/json
+Cookie: access_token=<JWT>
+
+{
+  "query": "Что означает атомарность транзакции?",
+  "limit": 5
+}
+```
+
+Для поиска внутри одного материала используется то же тело запроса:
+
+```http
+POST /api/v1/courses/{courseId}/materials/{materialId}/search
+Content-Type: application/json
+Cookie: access_token=<JWT>
+
+{
+  "query": "Что означает атомарность транзакции?",
+  "limit": 5
+}
+```
+
+Путь обозначает поиск внутри конкретного курса, поэтому содержит `courses/{courseId}`. Он не определяет модуль реализации. Поле `limit` необязательно: по умолчанию используется 5. Идентификатор пользователя берется из проверенного JWT через `@AuthenticationPrincipal`, а не из тела запроса.
+
+Контроллер вызывает `RetrievalLookup.searchCourse`. Реализация `RetrievalService` обрезает пробелы, проверяет вопрос и положительный лимит, затем существование курса и его владельца. После этого `EmbeddingClient` получает эмбеддинг вопроса, а `ChunkSearchRepository` ищет чанки по этому вектору с фильтрами `course_id` и `owner_id`.
+
+Для material endpoint вызывается `RetrievalLookup.searchMaterial`. До генерации эмбеддинга сервис дополнительно проверяет наличие материала и его принадлежность указанному курсу. Репозиторий добавляет фильтр `material_id`. Отсутствующий материал или материал другого курса дает `404`.
+
+Ответ `200` — JSON-массив объектов `SearchResultChunk` с полями `chunkId`, `materialId`, `chunkIndex`, `text`, `distance`. Результаты отсортированы по возрастанию косинусного расстояния; меньшая дистанция означает большую близость. При отсутствии проиндексированных фрагментов возвращается `[]`. Этот API возвращает фрагменты материалов; генерация ответа по найденным фрагментам — следующий этап RAG.
+
+| Код | Причина | Тело |
+| --- | --- | --- |
+| 400 | Пустой вопрос, неположительный лимит, некорректный JSON или UUID курса/материала | `ErrorResponse` с полем `message` |
+| 403 | Курс принадлежит другому пользователю | `ErrorResponse` с полем `message` |
+| 403 | Нет действительной cookie `access_token` | Ответ существующего Spring Security; тело может отсутствовать |
+| 404 | Курс или материал не существует; материал не принадлежит указанному курсу | `ErrorResponse` с полем `message` |
+| 502 | Ошибка embedding-провайдера | `ErrorResponse` с сообщением `Embedding generation failed` |
+
+`RetrievalExceptionHandler` ограничен `RetrievalController` и преобразует исключения в HTTP-ответы. Аннотации Swagger описывают контракт; сами по себе они не выполняют проверки и не обеспечивают авторизацию.
+
+Входной `SearchRequest` проверяется автоматически через `@Valid @RequestBody`: `@field:NotBlank` для `query`, `@field:Positive` для `limit`. При нарушении ограничений Spring выбрасывает `MethodArgumentNotValidException`; обработчик возвращает `400` и `ErrorResponse`, например `{"message":"query: Search query must not be blank"}`. Проверки в сервисе остаются для вызовов из других модулей, которые обходят HTTP-контроллер.
+
+`JwtAuthenticationFilter` сохраняет проверенный `SecurityContext` через `RequestAttributeSecurityContextRepository`. Это сохраняет пользователя при асинхронном завершении `suspend`-контроллера в пределах того же HTTP-запроса и не создает HTTP-сессию.
+
+### План: длинные и составные вопросы
+
+**Статус на 2026-11-02:** в `RetrievalService`, реализующем публичный интерфейс `RetrievalLookup`, один вопрос преобразуется в один эмбеддинг. Сервис передает этот вектор в `ChunkSearchRepository.findNearest`. Обработку нескольких подзапросов пока не реализовали.
+
+Для следующего этапа нужно определить поведение при длинном или составном вопросе:
+
+1. Ограничить объем входа с учетом контекстного окна embedding-модели. Для первой версии возвращать понятную ошибку при превышении выбранного предела.
+2. Рассмотреть разбиение на самостоятельные смысловые подзапросы. При разбиении сохранять условия и ссылки на общий контекст: механическое деление по числу символов может отделить вопрос от его условий. Сравнить этот подход с формированием одного краткого поискового запроса.
+3. Для нескольких подзапросов получить список эмбеддингов через `EmbeddingClient.embed`. Векторы вопросов использовать для поиска; в `retrieval_chunks` их не сохранять.
+4. Для каждого вектора вызвать существующий `findNearest` с теми же ограничениями пользователя и курса. Изменять интерфейс репозитория для этого не обязательно. Пакетный поиск в БД можно добавить отдельно, если потребуется сократить количество запросов.
+5. Объединить найденные фрагменты, удалить повторы по `chunkId` и выбрать способ общего ранжирования. Финальный `limit` применять после объединения, чтобы число результатов не увеличивалось пропорционально количеству подзапросов.
+6. Проверить качество на обычных, длинных и составных вопросах в сравнении с текущим поиском по одному вектору. Само разбиение не гарантирует улучшения результатов.
+
+Предел входа, критерии разбиения, максимальное число подзапросов и способ объединения результатов предстоит выбрать перед реализацией.
 
 ---
 

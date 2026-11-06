@@ -178,7 +178,7 @@ class QueryRewriter(private val chatClient: ChatClient) {
 @RequestMapping("/api/v1/courses/{courseId}/chats")
 class ChatStreamController(
     private val chatService: ChatService,
-    private val retrievalService: RetrievalService,
+    private val retrievalService: RetrievalLookup,
     private val queryRewriter: QueryRewriter,
     private val streamingChatClient: ChatClient,
 ) {

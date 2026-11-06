@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 
@@ -20,6 +21,7 @@ internal class JwtAuthenticationFilter(
 ) : OncePerRequestFilter() {
 
     private val log = LoggerFactory.getLogger(javaClass)
+    private val securityContextRepository = RequestAttributeSecurityContextRepository()
 
     override fun doFilterInternal(
         request: HttpServletRequest,
@@ -37,7 +39,11 @@ internal class JwtAuthenticationFilter(
                     val authUser = AuthenticatedUser(claims.userId, claims.email, claims.role)
                     val authorities = setOf(claims.role).map { SimpleGrantedAuthority(it.asAuthority()) }
                     val auth = UsernamePasswordAuthenticationToken(authUser, null, authorities)
-                    SecurityContextHolder.getContext().authentication = auth
+                    val context = SecurityContextHolder.createEmptyContext()
+                    context.authentication = auth
+                    SecurityContextHolder.setContext(context)
+                    // Preserve authentication across async dispatches of this request without an HTTP session.
+                    securityContextRepository.saveContext(context, request, response)
                 }
             } catch (e: Exception) {
                 log.debug("Invalid JWT token: ${e.message}")

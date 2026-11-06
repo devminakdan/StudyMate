@@ -17,14 +17,22 @@ val liquibaseRuntime by configurations.creating
 dependencies {
     api(project(":common"))
     implementation(project(":ai"))
+    implementation(project(":course"))
+    implementation(project(":iam"))
 
     implementation("org.springframework.boot:spring-boot-starter-jooq")
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.security:spring-security-core")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.liquibase:liquibase-core")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
     runtimeOnly("org.postgresql:postgresql")
 
     implementation("com.pgvector:pgvector:0.1.6")
+    implementation("io.swagger.core.v3:swagger-annotations-jakarta:2.2.52")
 
     jooqGenerator("org.postgresql:postgresql:42.7.4")
 
@@ -37,6 +45,47 @@ dependencies {
     testImplementation("org.testcontainers:postgresql")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("io.mockk:mockk:1.13.12")
+}
+
+jooq {
+    configurations {
+        create("main") {
+            jooqConfiguration.apply {
+                jdbc.apply {
+                    driver = "org.postgresql.Driver"
+                    url = "jdbc:postgresql://localhost:5432/studymate"
+                    user = "postgres"
+                    password = "postgres"
+                }
+                generator.apply {
+                    name = "org.jooq.codegen.KotlinGenerator"
+                    database.apply {
+                        name = "org.jooq.meta.postgres.PostgresDatabase"
+                        inputSchema = "public"
+                        includes = "retrieval_chunks"
+                    }
+                    generate.apply {
+                        isDeprecated = false
+                        isRecords = true
+                        isFluentSetters = true
+                        isPojos = true
+                    }
+                    target.apply {
+                        packageName = "cz.cvut.fit.studymate.retrieval.generated"
+                        directory = "${project.projectDir}/src/main/kotlin-generated"
+                    }
+                }
+            }
+        }
+    }
+}
+
+sourceSets {
+    main {
+        kotlin {
+            srcDir("src/main/kotlin-generated")
+        }
+    }
 }
 
 tasks.register<JavaExec>("liquibaseUpdate") {
@@ -56,4 +105,9 @@ tasks.register<JavaExec>("liquibaseUpdate") {
         "--password=postgres",
         "update",
     )
+    dependsOn(":course:liquibaseUpdate")
+}
+
+tasks.named("generateJooq") {
+    dependsOn("liquibaseUpdate")
 }
