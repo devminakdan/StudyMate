@@ -1,9 +1,14 @@
 package cz.cvut.fit.studymate.retrieval.internal.controller
 
+import cz.cvut.fit.studymate.ai.api.EmbeddingProviderException
 import cz.cvut.fit.studymate.iam.api.AuthenticatedUser
 import cz.cvut.fit.studymate.iam.api.Role
 import cz.cvut.fit.studymate.retrieval.api.RetrievalLookup
 import cz.cvut.fit.studymate.retrieval.api.SearchResultChunk
+import cz.cvut.fit.studymate.retrieval.internal.exceptions.InvalidRetrievalRequestException
+import cz.cvut.fit.studymate.retrieval.internal.exceptions.RetrievalAccessDeniedException
+import cz.cvut.fit.studymate.retrieval.internal.exceptions.RetrievalCourseNotFoundException
+import cz.cvut.fit.studymate.retrieval.internal.exceptions.RetrievalMaterialNotFoundException
 import io.mockk.Called
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -31,6 +36,8 @@ internal class RetrievalControllerTest {
     private val user = AuthenticatedUser(UUID.randomUUID(), "test@example.com", Role.USER)
     private val courseId = UUID.randomUUID()
     private val path = "/api/v1/courses/$courseId/search"
+    private val materialId = UUID.randomUUID()
+    private val materialPath = "/api/v1/courses/$courseId/materials/$materialId/search"
 
     private val mvc: MockMvc = MockMvcBuilders
         .standaloneSetup(RetrievalController(lookup))
@@ -47,6 +54,91 @@ internal class RetrievalControllerTest {
             ): Any = user
         })
         .build()
+
+    private fun assertSearchError(exception: RuntimeException, expectedStatus: Int, message: String) {
+        coEvery { lookup.searchCourse(any(), any(), any(), any()) } throws exception
+        coEvery { lookup.searchMaterial(any(), any(), any(), any(), any()) } throws exception
+
+        for (endpoint in listOf(path, materialPath)) {
+            val initial = mvc.perform(
+                post(endpoint).contentType(MediaType.APPLICATION_JSON).content("""{"query":"Question"}"""),
+            )
+                .andExpect(request().asyncStarted())
+                .andReturn()
+
+            mvc.perform(asyncDispatch(initial))
+                .andExpect(status().`is`(expectedStatus))
+                .andExpect(jsonPath("$.message").value(message))
+        }
+    }
+
+    @Test
+    fun `invalid service request returns 400 with ErrorResponse for both searches`() {
+        assertSearchError(InvalidRetrievalRequestException("Invalid search query"), 400, "Invalid search query")
+    }
+
+    @Test
+    fun `foreign course returns 403 with ErrorResponse for both searches`() {
+        assertSearchError(RetrievalAccessDeniedException(courseId), 403, "Access to course $courseId is denied")
+    }
+
+    @Test
+    fun `missing course returns 404 with ErrorResponse for both searches`() {
+        assertSearchError(RetrievalCourseNotFoundException(courseId), 404, "Course not found: $courseId")
+    }
+
+    @Test
+    fun `missing material returns 404 with ErrorResponse`() {
+        coEvery { lookup.searchMaterial(any(), any(), any(), any(), any()) } throws RetrievalMaterialNotFoundException(materialId)
+        val initial = mvc.perform(
+            post(materialPath).contentType(MediaType.APPLICATION_JSON).content("""{"query":"Question"}"""),
+        ).andReturn()
+
+        mvc.perform(asyncDispatch(initial))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.message").value("Material $materialId was not found"))
+    }
+
+    @Test
+    fun `embedding failure returns 502 without exposing provider details for both searches`() {
+        assertSearchError(EmbeddingProviderException("Internal Ollama address and error"), 502, "Embedding generation failed")
+    }
+
+    @Test
+    fun `invalid course or material UUID returns 400 before service invocation`() {
+        for ((endpoint, parameter) in listOf(
+            "/api/v1/courses/bad-uuid/search" to "courseId",
+            "/api/v1/courses/$courseId/materials/bad-uuid/search" to "materialId",
+        )) {
+            mvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("""{"query":"Question"}"""))
+                .andExpect(status().isBadRequest)
+                .andExpect(jsonPath("$.message").value("Invalid value for parameter '$parameter'"))
+        }
+        verify { lookup wasNot Called }
+    }
+
+    @Test
+    fun `nonpositive limits are rejected independently of query validation for both searches`() {
+        for (endpoint in listOf(path, materialPath)) {
+            for (limit in listOf(0, -1)) {
+                mvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("""{"query":"Question","limit":$limit}"""))
+                    .andExpect(status().isBadRequest)
+                    .andExpect(jsonPath("$.message").value("limit: Search limit must be positive"))
+            }
+        }
+        verify { lookup wasNot Called }
+    }
+
+    @Test
+    fun `malformed JSON returns 400 with ErrorResponse for both searches`() {
+        for (endpoint in listOf(path, materialPath)) {
+            mvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content("{")
+            )
+                .andExpect(status().isBadRequest)
+                .andExpect(jsonPath("$.message").value("Invalid JSON body: provide a string query and an optional integer limit"))
+        }
+        verify { lookup wasNot Called }
+    }
 
     @Test
     fun `blank queries and nonpositive limits fail DTO validation before service invocation`() {
