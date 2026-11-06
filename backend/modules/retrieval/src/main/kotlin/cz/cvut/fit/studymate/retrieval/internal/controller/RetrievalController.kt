@@ -55,7 +55,8 @@ internal class RetrievalController(
         ),
         ApiResponse(
             responseCode = "403",
-            description = "Missing or invalid access_token cookie, or the caller does not own the course.",
+            description = "Missing or invalid access_token cookie, or the caller does not own the course. " +
+                "Ownership errors contain ErrorResponse; authentication failures may have no response body.",
             content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = ErrorResponse::class))],
         ),
         ApiResponse(
@@ -108,7 +109,8 @@ internal class RetrievalController(
         ),
         ApiResponse(
             responseCode = "403",
-            description = "Missing or invalid access_token cookie, or the caller does not own the course.",
+            description = "Missing or invalid access_token cookie, or the caller does not own the course. " +
+                "Ownership errors contain ErrorResponse; authentication failures may have no response body.",
             content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = ErrorResponse::class))],
         ),
         ApiResponse(
