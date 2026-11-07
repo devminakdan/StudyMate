@@ -3,7 +3,7 @@ package cz.cvut.fit.studymate.ingestion.internal.chunking
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
-class SentenceAwareChunkerTest {
+internal class SentenceAwareChunkerTest {
     private val chunker = SentenceAwareChunker()
 
     @Test

@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.kafka.core.KafkaTemplate
 import java.util.UUID
 
-class ChunkingConsumerTest {
+internal class ChunkingConsumerTest {
     private val objectMapper = mockk<ObjectMapper>()
     private val processedEvents = mockk<ProcessedEventsRepository>()
     private val statusUpdater = mockk<MaterialStatusUpdater>(relaxed = true)

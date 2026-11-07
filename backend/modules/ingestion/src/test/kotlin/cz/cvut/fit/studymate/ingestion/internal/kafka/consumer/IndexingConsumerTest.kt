@@ -18,7 +18,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.util.UUID
 
-class IndexingConsumerTest {
+internal class IndexingConsumerTest {
     private val objectMapper = mockk<ObjectMapper>()
     private val processedEvents = mockk<ProcessedEventsRepository>()
     private val statusUpdater = mockk<MaterialStatusUpdater>(relaxed = true)
