@@ -10,7 +10,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
 
-class LocalFileStorageTest {
+internal class LocalFileStorageTest {
     @TempDir
     lateinit var tempDir: Path
 
