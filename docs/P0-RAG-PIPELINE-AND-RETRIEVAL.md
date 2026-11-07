@@ -1,6 +1,6 @@
 # План реализации P0: Ядро RAG и поисковый движок (Retrieval Engine)
 
-> **Приоритет: P0 (Критический).** Документ содержит исходный аудит и план расширения RAG. На 2026-11-05 базовый векторный поиск по курсу и материалу реализован; актуальный контракт находится в разделе «Реализованный HTTP API поиска». Метаданные, гибридный поиск и остальные расширения ниже остаются планом.
+> **Приоритет: P0 (Критический).** Документ содержит исходный аудит и план расширения RAG. На 2026-11-08 реализованы базовый векторный поиск по курсу и материалу и пакетная обработка эмбеддингов. Актуальный HTTP-контракт находится в разделе «Реализованный HTTP API поиска», текущая реализация batching — в разделе 5. Метаданные страниц/слайдов и гибридный поиск остаются планом; примеры в этих разделах являются проектными набросками.
 
 ---
 
@@ -33,21 +33,22 @@ sequenceDiagram
     Chunk->>Kafka: send(TextChunkedEvent)
     Kafka->>Embed: consume(TextChunkedEvent)
     Embed->>Redis: status = EMBEDDING
-    Note over Embed: Ollama /api/embed (bge-m3) ВСЕ чанки разом
+    Note over Embed: Ollama /api/embed (bge-m3), последовательно до 32 текстов
+    Note over Embed: Одно итоговое событие со всеми чанками
     Embed->>Kafka: send(ChunksEmbeddedEvent)
     Kafka->>Index: consume(ChunksEmbeddedEvent)
     Index->>Redis: status = INDEXING
-    Index->>DB: JooqChunkIndexer (INSERT INTO retrieval_chunks)
+    Index->>DB: JooqChunkIndexer (атомарная замена чанков материала)
     Index->>Redis: status = READY
 ```
 
-### Выявленные критические дефекты:
+### Исходные проблемы и текущий статус:
 1. **Потеря страниц и слайдов:** в [`ParsingConsumer.kt#L45`](file:///Users/test/IdeaProjects/studymate/backend/modules/ingestion/src/main/kotlin/cz/cvut/fit/studymate/ingestion/internal/kafka/consumer/ParsingConsumer.kt#L45) вызывается `tika.parseToString(it)`. В результате весь документ становится единой неструктурированной строкой.
    - Поле `page_count` в таблице `materials` остается `null`.
    - Студент не может получить ответ вида: *«Это объяснялось на слайде 14 презентации Lecture03.pptx»*.
 2. **Отсутствие метаданных в чанках:** в таблице `retrieval_chunks` нет поля `metadata jsonb`. Хранятся только `chunk_index` и плоский `chunk_text`.
-3. **Риск падения по OOM / Timeout при эмбеддинге:** в [`EmbeddingConsumer.kt#L43`](file:///Users/test/IdeaProjects/studymate/backend/modules/ingestion/src/main/kotlin/cz/cvut/fit/studymate/ingestion/internal/kafka/consumer/EmbeddingConsumer.kt#L43) все чанки документа передаются в один HTTP-запрос в Ollama. Большой учебник на 300 страниц вызовет перегрузку Ollama.
-4. **Полное отсутствие Retrieval API:** в модуле [`:retrieval`](file:///Users/test/IdeaProjects/studymate/backend/modules/retrieval) реализован только класс [`JooqChunkIndexer`](file:///Users/test/IdeaProjects/studymate/backend/modules/retrieval/src/main/kotlin/cz/cvut/fit/studymate/retrieval/internal/indexing/JooqChunkIndexer.kt). Нет ни одного репозитория, интерфейса или сервиса, выполняющего запрос `SELECT ... ORDER BY embedding <=> query_vector`.
+3. **Ограничение размера embedding-запросов — реализовано:** раньше все чанки документа передавались в один HTTP-запрос в Ollama. Теперь `EmbeddingConsumer` обрабатывает их последовательными пакетами до 32 текстов. Это уменьшает нагрузку одного запроса, но не гарантирует отсутствие любых таймаутов или нехватки памяти. Подробнее — раздел 5.
+4. **Базовый Retrieval API — реализован:** `RetrievalLookup`, сервис, репозиторий и HTTP-контроллер выполняют векторный поиск по курсу или материалу с проверкой владельца. Актуальный контракт приведен в разделе «Реализованный HTTP API поиска».
 
 ---
 
@@ -176,50 +177,45 @@ data class ChunkWithEmbeddingDto(
 
 ---
 
-## 5. Пакетная обработка в `EmbeddingConsumer` (Защита от OOM)
+## 5. Пакетная обработка в `EmbeddingConsumer` — реализовано
 
-В [`EmbeddingConsumer.kt`](file:///Users/test/IdeaProjects/studymate/backend/modules/ingestion/src/main/kotlin/cz/cvut/fit/studymate/ingestion/internal/kafka/consumer/EmbeddingConsumer.kt) чанки разбиваются на подбатчи по 32 штуки:
+**Статус на 2026-11-08:** реализация находится в [`EmbeddingConsumer.kt`](../backend/modules/ingestion/src/main/kotlin/cz/cvut/fit/studymate/ingestion/internal/kafka/consumer/EmbeddingConsumer.kt), тесты — в [`EmbeddingConsumerTest.kt`](../backend/modules/ingestion/src/test/kotlin/cz/cvut/fit/studymate/ingestion/internal/kafka/consumer/EmbeddingConsumerTest.kt).
+
+Каждый вызов `EmbeddingClient` получает максимум 32 текста. Например, для 65 чанков выполняются три последовательных запроса: `32 + 32 + 1`. Основной фрагмент текущего кода:
 
 ```kotlin
-private const val EMBEDDING_BATCH_SIZE = 32
+val batches = event.chunks.chunked(32)
 
-fun handle(event: TextChunkedEvent) {
-    if (processedEventsRepository.exists(event.eventId)) return
+val embeddedChunks = runBlocking {
+    batches.flatMap { batch ->
+        val embeddings = embeddingClient.embed(batch.map { it.text })
 
-    try {
-        updateStatus(event, MaterialStatus.EMBEDDING)
-        
-        // Батчинг для предотвращения перегрузки Ollama
-        val allEmbeddings = mutableListOf<FloatArray>()
-        val batches = event.chunks.chunked(EMBEDDING_BATCH_SIZE)
-        
-        for (batch in batches) {
-            val texts = batch.map { it.text }
-            val batchEmbeddings = runBlocking { embeddingClient.embed(texts) }
-            allEmbeddings.addAll(batchEmbeddings)
+        check(embeddings.size == batch.size) {
+            "Embedding provider returned ${embeddings.size} vectors for ${batch.size} chunks"
         }
 
-        val embeddedChunks = event.chunks.zip(allEmbeddings) { chunk, emb ->
-            ChunkWithEmbeddingDto(chunk.chunkIndex, chunk.text, chunk.metadata, emb)
-        }
-
-        kafkaTemplate.send(
-            kafkaTopics.chunksEmbedded,
-            event.materialId.toString(),
-            ChunksEmbeddedEvent(
-                materialId = event.materialId,
-                courseId = event.courseId,
-                ownerId = event.ownerId,
-                chunks = embeddedChunks,
+        batch.zip(embeddings) { chunk, embedding ->
+            ChunkWithEmbeddingDto(
+                chunkIndex = chunk.chunkIndex,
+                text = chunk.text,
+                embedding = embedding,
             )
-        ).get()
-
-        processedEventsRepository.markProcessed(event.eventId)
-    } catch (e: Exception) {
-        fail(event, e)
+        }
     }
 }
 ```
+
+- `chunked` и последовательный `flatMap` сохраняют порядок чанков. `zip` связывает текст с соответствующим вектором; исходный `chunkIndex` переносится без перенумерации.
+- Количество векторов проверяется для каждого пакета до `zip`, чтобы несовпадение размеров не привело к потере данных.
+- После обработки всех пакетов отправляется **одно** `ChunksEmbeddedEvent` со всем списком. После подтверждения отправки через `.get()` входное событие отмечается обработанным.
+- При исключении или несовпадении количества векторов частичное событие не отправляется; существующий `fail` пытается записать статус `FAILED` и отметить входное событие обработанным.
+- Уже обработанное входное событие пропускается до вызовов модели и изменения статусов.
+
+Одно итоговое событие важно для `JooqChunkIndexer`: он полностью заменяет индекс материала. Отправка отдельного события на каждый пакет оставляла бы в индексе только последний обработанный пакет.
+
+Batching ограничивает размер одного запроса к модели. Весь итоговый список по-прежнему собирается в памяти и передается одним Kafka-событием; обработка не становится потоковой и не исключает любые таймауты или нехватку памяти.
+
+Тесты покрывают 1, 32, 33, 64 и 65 чанков, порядок и соответствие `chunkIndex/text/embedding`, сбой второго пакета, недостаток и избыток векторов, ошибку отправки в Kafka и повторное входное событие. CI запускает их командой `./gradlew :ingestion:test` вместе с остальными тестами модуля.
 
 ---
 
@@ -481,7 +477,7 @@ LIMIT :limit;
 - [ ] В `retrieval_chunks` добавлено поле `metadata jsonb` и вектор полнотекстового поиска `text_search_vector`.
 - [ ] Документы PPTX и PDF парсятся с сохранением номеров слайдов/страниц; `materials.page_count` обновляется в базе.
 - [ ] Чанки не склеивают разные слайды вместе. Метаданные содержат `pageNumber`.
-- [ ] `EmbeddingConsumer` обрабатывает чанки батчами по 32 штуки, исключая сбои по таймаутам.
+- [x] `EmbeddingConsumer` последовательно обрабатывает чанки пакетами до 32 текстов, проверяет количество векторов и публикует одно полное событие; пакетная обработка покрыта тестами.
 - [ ] Написаны интеграционные тесты для `RetrievalService` с использованием Testcontainers (`pgvector:pg16`):
   - Проверка косинусной сортировки (наиболее близкий чанк возвращается первым).
   - Проверка изоляции курсов: чанки курса `Course_A` не попадают в выдачу курса `Course_B`.
