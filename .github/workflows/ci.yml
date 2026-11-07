@@ -48,6 +48,9 @@ jobs:
       - name: Run retrieval tests
         run: cd backend && ./gradlew :retrieval:test
 
+      - name: Run ingestion tests
+        run: cd backend && ./gradlew :ingestion:test
+
       - name: Compile backend application
         run: cd backend && ./gradlew :app:compileKotlin
 
