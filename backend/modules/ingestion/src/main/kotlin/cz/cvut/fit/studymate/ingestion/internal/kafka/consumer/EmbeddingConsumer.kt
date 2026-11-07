@@ -40,12 +40,24 @@ internal class EmbeddingConsumer(
 
         try {
             updateStatus(event, MaterialStatus.EMBEDDING)
-            val embeddings = runBlocking { embeddingClient.embed(event.chunks.map { it.text }) }
-            check(embeddings.size == event.chunks.size) {
-                "Embedding provider returned ${embeddings.size} vectors for ${event.chunks.size} chunks"
-            }
-            val embeddedChunks = event.chunks.zip(embeddings) { chunk, embedding ->
-                ChunkWithEmbeddingDto(chunk.chunkIndex, chunk.text, embedding)
+            val batches = event.chunks.chunked(32)
+
+            val embeddedChunks = runBlocking {
+                batches.flatMap { batch ->
+                    val embeddings = embeddingClient.embed(batch.map { it.text })
+
+                    check(embeddings.size == batch.size) {
+                        "Embedding provider returned ${embeddings.size} vectors for ${batch.size} chunks"
+                    }
+
+                    batch.zip(embeddings) { chunk, embedding ->
+                        ChunkWithEmbeddingDto(
+                            chunkIndex = chunk.chunkIndex,
+                            text = chunk.text,
+                            embedding = embedding,
+                        )
+                    }
+                }
             }
             kafkaTemplate.send(
                 kafkaTopics.chunksEmbedded,
