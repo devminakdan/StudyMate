@@ -51,6 +51,9 @@ jobs:
       - name: Run ingestion tests
         run: cd backend && ./gradlew :ingestion:test
 
+      - name: Run chat tests
+        run: cd backend && ./gradlew :chat:test
+
       - name: Compile backend application
         run: cd backend && ./gradlew :app:compileKotlin
 
